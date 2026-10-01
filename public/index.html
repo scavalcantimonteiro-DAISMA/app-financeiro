@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/style.css?v=1.0.6">
+  <link rel="stylesheet" href="/style.css?v=1.0.7">
   
   <!-- Fontes & Ícones -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -122,7 +122,7 @@
           <span class="icon"><i class="fa-solid fa-plus"></i></span>
           <span>Novo Gasto</span>
         </button>
-        <button class="action-btn" onclick="openModal('modal-debtor')">
+        <button class="action-btn" onclick="openNewDebtorModal()">
           <span class="icon"><i class="fa-solid fa-user-plus"></i></span>
           <span>Cobrança</span>
         </button>
@@ -195,7 +195,7 @@
             <div class="balance-title">Saldo Total a Receber</div>
             <div class="balance-amount blue" style="font-size: 1.8rem; margin-bottom: 0;" id="debtors-screen-total">R$ 0,00</div>
           </div>
-          <button class="submit-btn" style="width: auto; padding: 10px 16px; margin: 0; font-size: 0.85rem;" onclick="openModal('modal-debtor')">
+          <button class="submit-btn" style="width: auto; padding: 10px 16px; margin: 0; font-size: 0.85rem;" onclick="openNewDebtorModal()">
             <i class="fa-solid fa-user-plus"></i> Cadastrar Pessoa
           </button>
         </div>
@@ -517,14 +517,16 @@
         </div>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
-        <button class="submit-btn" style="flex: 1; min-width: 130px; padding: 12px; margin: 0; font-size: 0.85rem;" onclick="openNewDebtForCurrent()">
-          <i class="fa-solid fa-plus"></i> Nova Compra
-        </button>
-        <button class="btn-export" style="background: rgba(16, 185, 129, 0.2); color: #34d399;" onclick="confirmPayAllDebtor()">
+      <!-- Botão em Destaque: Cadastrar Nova Dívida -->
+      <button class="submit-btn" style="width: 100%; margin-bottom: 12px; padding: 14px; background: linear-gradient(135deg, #3b82f6, #2563eb); font-size: 0.95rem; font-weight: 700; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);" onclick="openNewDebtForCurrent()">
+        <i class="fa-solid fa-circle-plus"></i> Cadastrar Nova Dívida / Compra
+      </button>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 16px;">
+        <button class="btn-export" style="justify-content: center; background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 10px;" onclick="confirmPayAllDebtor()">
           <i class="fa-solid fa-check-double"></i> Quitar Tudo
         </button>
-        <button class="btn-export" style="background: rgba(239, 68, 68, 0.2); color: #f87171;" onclick="deleteCurrentDebtorModal()">
+        <button class="btn-export" style="justify-content: center; background: rgba(239, 68, 68, 0.2); color: #f87171; border-color: rgba(239, 68, 68, 0.3); padding: 10px;" onclick="deleteCurrentDebtorModal()">
           <i class="fa-solid fa-trash"></i> Excluir Pessoa
         </button>
       </div>
@@ -617,6 +619,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=1.0.6"></script>
+  <script src="/app.js?v=1.0.7"></script>
 </body>
 </html>

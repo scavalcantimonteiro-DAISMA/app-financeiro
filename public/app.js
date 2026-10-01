@@ -562,7 +562,7 @@ function renderDebtorsCards(debtors) {
   if (!container) return;
 
   if (!debtors || debtors.length === 0) {
-    container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Nenhum devedor cadastrado. Toque no botão acima para adicionar uma pessoa.</p>';
+    container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 40px 0;">Nenhuma pessoa cadastrada. Toque no botão acima para adicionar uma pessoa.</p>';
     return;
   }
 
@@ -575,7 +575,7 @@ function renderDebtorsCards(debtors) {
 
     return `
       <div class="debtor-card">
-        <div class="debtor-top">
+        <div class="debtor-top" onclick="openDebtorDetails(${d.id})" style="cursor: pointer;" title="Toque para ver detalhes e dívidas desta pessoa">
           <div class="debtor-profile">
             <div class="debtor-avatar">${initial}</div>
             <div>
@@ -587,14 +587,13 @@ function renderDebtorsCards(debtors) {
             <div style="font-size: 1.1rem; font-weight: 800; color: ${pending > 0 ? '#f87171' : '#34d399'};">
               ${formatBRL(pending)}
             </div>
-            <div style="display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;">
-              <button class="icon-action-btn" onclick="editDebtorClick(${d.id})" title="Editar Pessoa"><i class="fa-solid fa-pen"></i></button>
-              <button class="icon-action-btn delete" onclick="deleteDebtorClick(${d.id}, '${d.name.replace(/'/g, "\\'")}')" title="Excluir Pessoa"><i class="fa-solid fa-trash"></i></button>
+            <div style="font-size: 0.72rem; color: var(--text-muted); margin-top: 2px;">
+              Toque para abrir <i class="fa-solid fa-chevron-right" style="font-size: 0.65rem;"></i>
             </div>
           </div>
         </div>
 
-        <div class="progress-bar-container">
+        <div class="progress-bar-container" onclick="openDebtorDetails(${d.id})" style="cursor: pointer;">
           <div class="progress-bar-fill" style="width: ${percentPaid}%;"></div>
         </div>
 
@@ -603,12 +602,17 @@ function renderDebtorsCards(debtors) {
           <span>Pago: <strong style="color: #34d399;">${formatBRL(paid)} (${percentPaid}%)</strong></span>
         </div>
 
+        <!-- Botão Principal em Destaque: Cadastrar Nova Dívida -->
+        <button class="debtor-btn" style="width: 100%; margin-bottom: 8px; padding: 12px; background: linear-gradient(135deg, #3b82f6, #1d4ed8); color: white; font-weight: 700; box-shadow: 0 4px 12px rgba(37, 99, 235, 0.35);" onclick="openNewDebtForDebtor(${d.id})">
+          <i class="fa-solid fa-circle-plus"></i> Cadastrar Nova Dívida / Compra
+        </button>
+
         <div class="debtor-buttons">
-          <button class="debtor-btn whatsapp" onclick="openWhatsAppClosingModal(${d.id})">
-            <i class="fa-brands fa-whatsapp"></i> Cobrança do Mês
-          </button>
           <button class="debtor-btn details" onclick="openDebtorDetails(${d.id})">
-            <i class="fa-solid fa-list-check"></i> Ver Parcelas
+            <i class="fa-solid fa-list-check"></i> Ver Dívidas & Parcelas
+          </button>
+          <button class="debtor-btn whatsapp" onclick="openWhatsAppClosingModal(${d.id})">
+            <i class="fa-brands fa-whatsapp"></i> Cobrança Mês
           </button>
         </div>
 
@@ -757,11 +761,20 @@ function renderDebtsList(debtor) {
   if (!container) return;
 
   if (!debtor.items || debtor.items.length === 0) {
-    container.innerHTML = '<p style="color: var(--text-muted); text-align: center; padding: 20px;">Nenhuma compra cadastrada para esta pessoa. Clique em "Nova Compra".</p>';
+    container.innerHTML = `
+      <div style="text-align: center; padding: 24px 16px; background: rgba(255, 255, 255, 0.03); border-radius: 16px; border: 1px dashed rgba(255, 255, 255, 0.15); margin-top: 8px;">
+        <i class="fa-solid fa-receipt" style="font-size: 2.2rem; color: var(--text-muted); margin-bottom: 10px; display: block;"></i>
+        <div style="font-weight: 700; color: #f1f5f9; margin-bottom: 4px; font-size: 0.95rem;">Nenhuma dívida ou compra cadastrada</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 16px;">Lance compras ou valores devidos para gerar parcelas automáticas.</div>
+        <button class="submit-btn" style="width: 100%; margin: 0; background: linear-gradient(135deg, #3b82f6, #1d4ed8); font-weight: 700;" onclick="openNewDebtForCurrent()">
+          <i class="fa-solid fa-circle-plus"></i> Cadastrar Primeira Dívida Agora
+        </button>
+      </div>
+    `;
     return;
   }
 
-  container.innerHTML = debtor.items.map(item => `
+  const debtsHtml = debtor.items.map(item => `
     <div class="glass-card" style="margin-bottom: 12px; padding: 14px;">
       <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 8px;">
         <div>
@@ -794,6 +807,13 @@ function renderDebtsList(debtor) {
       </div>
     </div>
   `).join('');
+
+  container.innerHTML = `
+    ${debtsHtml}
+    <button class="btn-export" style="width: 100%; justify-content: center; margin-top: 14px; padding: 12px; font-weight: 700; background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px dashed rgba(59, 130, 246, 0.4);" onclick="openNewDebtForCurrent()">
+      <i class="fa-solid fa-circle-plus"></i> + Lançar Outra Dívida / Compra
+    </button>
+  `;
 }
 
 async function toggleInstallmentStatus(installmentId, isPaid) {
@@ -837,14 +857,28 @@ async function confirmPayAllDebtor() {
   }
 }
 
-function openNewDebtForCurrent() {
-  if (!state.selectedDebtor) return;
-  document.getElementById('debt-item-debtor-id').value = state.selectedDebtor.id;
-  document.getElementById('debt-item-debtor-name').value = state.selectedDebtor.name;
-  
-  // Fecha o modal de detalhes antes de abrir o modal de nova dívida para aparecer imediatamente
+function openNewDebtForDebtor(debtorId) {
+  const debtor = state.debtors.find(d => d.id === debtorId);
+  if (!debtor) return;
+  state.selectedDebtor = debtor;
+
+  const form = document.getElementById('form-debt-item');
+  if (form) form.reset();
+
+  document.getElementById('debt-item-debtor-id').value = debtor.id;
+  document.getElementById('debt-item-debtor-name').value = debtor.name;
+  document.getElementById('debt-item-desc').value = '';
+  document.getElementById('debt-item-amount').value = '';
+  document.getElementById('debt-item-installments').value = '1';
+  document.getElementById('debt-item-date').value = new Date().toISOString().split('T')[0];
+
   closeModal('modal-debtor-details');
   openModal('modal-debt-item');
+}
+
+function openNewDebtForCurrent() {
+  if (!state.selectedDebtor) return;
+  openNewDebtForDebtor(state.selectedDebtor.id);
 }
 
 async function handleDebtItemSubmit(event) {
@@ -958,6 +992,25 @@ async function handleDebtorSubmit(event) {
   } catch (err) {
     alert('Erro de conexão ao salvar pessoa.');
   }
+}
+
+function openNewDebtorModal() {
+  const form = document.getElementById('form-debtor');
+  if (form) form.reset();
+
+  const idInput = document.getElementById('debtor-id');
+  if (idInput) idInput.value = '';
+  const nameInput = document.getElementById('debtor-name');
+  if (nameInput) nameInput.value = '';
+  const phoneInput = document.getElementById('debtor-phone');
+  if (phoneInput) phoneInput.value = '';
+  const notesInput = document.getElementById('debtor-notes');
+  if (notesInput) notesInput.value = '';
+
+  const title = document.getElementById('modal-debtor-title');
+  if (title) title.textContent = 'Cadastrar Pessoa';
+
+  openModal('modal-debtor');
 }
 
 function editDebtorClick(debtorId) {
@@ -1461,6 +1514,21 @@ function openModal(modalId) {
 function closeModal(modalId) {
   const modal = document.getElementById(modalId);
   if (modal) modal.classList.remove('active');
+
+  // Limpeza preventiva de campos e títulos para não misturar edição com novo cadastro
+  if (modalId === 'modal-debtor') {
+    const idInput = document.getElementById('debtor-id');
+    if (idInput) idInput.value = '';
+    const form = document.getElementById('form-debtor');
+    if (form) form.reset();
+    const title = document.getElementById('modal-debtor-title');
+    if (title) title.textContent = 'Cadastrar Pessoa';
+  } else if (modalId === 'modal-expense') {
+    const idInput = document.getElementById('expense-id');
+    if (idInput) idInput.value = '';
+    const title = document.getElementById('modal-expense-title');
+    if (title) title.textContent = 'Registrar Gasto';
+  }
 }
 
 function closeModalOnOverlay(event, modalId) {
@@ -1479,12 +1547,26 @@ function formatDateBR(dateStr) {
 }
 
 function formatPhone(phone) {
-  const clean = phone.replace(/\D/g, '');
+  const clean = (phone || '').replace(/\D/g, '');
   if (clean.length === 11) {
     return `(${clean.substring(0, 2)}) ${clean.substring(2, 7)}-${clean.substring(7)}`;
   }
   if (clean.length === 10) {
     return `(${clean.substring(0, 2)}) ${clean.substring(2, 6)}-${clean.substring(6)}`;
   }
-  return phone;
+  return phone || '';
 }
+
+// Exportações explícitas no window para suporte total aos cliques do HTML/iOS
+window.openNewDebtorModal = openNewDebtorModal;
+window.openNewDebtForDebtor = openNewDebtForDebtor;
+window.openNewDebtForCurrent = openNewDebtForCurrent;
+window.openDebtorDetails = openDebtorDetails;
+window.editDebtorClick = editDebtorClick;
+window.deleteDebtorClick = deleteDebtorClick;
+window.deleteCurrentDebtorModal = deleteCurrentDebtorModal;
+window.confirmPayAllDebtor = confirmPayAllDebtor;
+window.openWhatsAppClosingModal = openWhatsAppClosingModal;
+window.closeModal = closeModal;
+window.openModal = openModal;
+
