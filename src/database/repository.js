@@ -1,116 +1,118 @@
 const { getDatabase } = require('./db');
 
 // --- Configurações ---
-function getSettings() {
+async function getSettings() {
   const db = getDatabase();
-  const rows = db.prepare('SELECT key, value FROM app_settings').all();
+  const res = await db.execute('SELECT key, value FROM app_settings');
   const settings = {
     user_name: 'Saulo',
     pix_key: '06888505456'
   };
-  for (const r of rows) {
+  for (const r of res.rows) {
     settings[r.key] = r.value;
   }
   return settings;
 }
 
-function updateSetting(key, value) {
+async function updateSetting(key, value) {
   const db = getDatabase();
-  db.prepare(`
-    INSERT INTO app_settings (key, value) VALUES (?, ?)
-    ON CONFLICT(key) DO UPDATE SET value = excluded.value
-  `).run(key, value);
+  await db.execute({
+    sql: `INSERT INTO app_settings (key, value) VALUES (?, ?)
+          ON CONFLICT(key) DO UPDATE SET value = excluded.value`,
+    args: [key, value]
+  });
 }
 
 // --- Rendas ---
-function getIncomesByMonth(year, month) {
+async function getIncomesByMonth(year, month) {
   const db = getDatabase();
-  return db.prepare(`
-    SELECT * FROM incomes 
-    WHERE year = ? AND month = ?
-    ORDER BY id DESC
-  `).all(year, month);
+  const res = await db.execute({
+    sql: 'SELECT * FROM incomes WHERE year = ? AND month = ? ORDER BY id DESC',
+    args: [year, month]
+  });
+  return res.rows;
 }
 
-function addIncome(year, month, description, amount, receivedDate) {
+async function addIncome(year, month, description, amount, receivedDate) {
   const db = getDatabase();
-  const result = db.prepare(`
-    INSERT INTO incomes (year, month, description, amount, received_date)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(year, month, description, amount, receivedDate || null);
-  return { id: result.lastInsertRowid, year, month, description, amount };
+  const res = await db.execute({
+    sql: 'INSERT INTO incomes (year, month, description, amount, received_date) VALUES (?, ?, ?, ?, ?)',
+    args: [year, month, description, amount, receivedDate || null]
+  });
+  return { id: Number(res.lastInsertRowid), year, month, description, amount };
 }
 
-function deleteIncome(id) {
+async function deleteIncome(id) {
   const db = getDatabase();
-  db.prepare('DELETE FROM incomes WHERE id = ?').run(id);
+  await db.execute({ sql: 'DELETE FROM incomes WHERE id = ?', args: [id] });
 }
 
 // --- Contas Fixas ---
-function getFixedExpensesWithStatus(year, month) {
+async function getFixedExpensesWithStatus(year, month) {
   const db = getDatabase();
-  const expenses = db.prepare(`
-    SELECT fe.*, 
-      COALESCE(fep.is_paid, 0) as is_paid,
-      fep.paid_at
-    FROM fixed_expenses fe
-    LEFT JOIN fixed_expense_payments fep 
-      ON fe.id = fep.fixed_expense_id AND fep.year = ? AND fep.month = ?
-    WHERE fe.is_active = 1
-    ORDER BY fe.due_day ASC, fe.name ASC
-  `).all(year, month);
-  return expenses;
+  const res = await db.execute({
+    sql: `SELECT fe.*, 
+            COALESCE(fep.is_paid, 0) as is_paid,
+            fep.paid_at
+          FROM fixed_expenses fe
+          LEFT JOIN fixed_expense_payments fep 
+            ON fe.id = fep.fixed_expense_id AND fep.year = ? AND fep.month = ?
+          WHERE fe.is_active = 1
+          ORDER BY fe.due_day ASC, fe.name ASC`,
+    args: [year, month]
+  });
+  return res.rows;
 }
 
-function addFixedExpense(name, amount, dueDay, category) {
+async function addFixedExpense(name, amount, dueDay, category) {
   const db = getDatabase();
-  const result = db.prepare(`
-    INSERT INTO fixed_expenses (name, amount, due_day, category)
-    VALUES (?, ?, ?, ?)
-  `).run(name, amount, dueDay || 10, category || 'Moradia');
-  return { id: result.lastInsertRowid, name, amount, dueDay, category };
+  const res = await db.execute({
+    sql: 'INSERT INTO fixed_expenses (name, amount, due_day, category) VALUES (?, ?, ?, ?)',
+    args: [name, amount, dueDay || 10, category || 'Moradia']
+  });
+  return { id: Number(res.lastInsertRowid), name, amount, dueDay, category };
 }
 
-function updateFixedExpense(id, name, amount, dueDay, category) {
+async function updateFixedExpense(id, name, amount, dueDay, category) {
   const db = getDatabase();
-  db.prepare(`
-    UPDATE fixed_expenses
-    SET name = ?, amount = ?, due_day = ?, category = ?
-    WHERE id = ?
-  `).run(name, amount, dueDay, category, id);
+  await db.execute({
+    sql: 'UPDATE fixed_expenses SET name = ?, amount = ?, due_day = ?, category = ? WHERE id = ?',
+    args: [name, amount, dueDay, category, id]
+  });
 }
 
-function deleteFixedExpense(id) {
+async function deleteFixedExpense(id) {
   const db = getDatabase();
-  db.prepare('DELETE FROM fixed_expenses WHERE id = ?').run(id);
-  db.prepare('DELETE FROM fixed_expense_payments WHERE fixed_expense_id = ?').run(id);
+  await db.execute({ sql: 'DELETE FROM fixed_expenses WHERE id = ?', args: [id] });
+  await db.execute({ sql: 'DELETE FROM fixed_expense_payments WHERE fixed_expense_id = ?', args: [id] });
 }
 
-function toggleFixedExpensePayment(fixedExpenseId, year, month, isPaid) {
+async function toggleFixedExpensePayment(fixedExpenseId, year, month, isPaid) {
   const db = getDatabase();
   const paidAt = isPaid ? new Date().toISOString() : null;
-  db.prepare(`
-    INSERT INTO fixed_expense_payments (fixed_expense_id, year, month, is_paid, paid_at)
-    VALUES (?, ?, ?, ?, ?)
-    ON CONFLICT(fixed_expense_id, year, month)
-    DO UPDATE SET is_paid = excluded.is_paid, paid_at = excluded.paid_at
-  `).run(fixedExpenseId, year, month, isPaid ? 1 : 0, paidAt);
+  await db.execute({
+    sql: `INSERT INTO fixed_expense_payments (fixed_expense_id, year, month, is_paid, paid_at)
+          VALUES (?, ?, ?, ?, ?)
+          ON CONFLICT(fixed_expense_id, year, month)
+          DO UPDATE SET is_paid = excluded.is_paid, paid_at = excluded.paid_at`,
+    args: [fixedExpenseId, year, month, isPaid ? 1 : 0, paidAt]
+  });
 }
 
 // --- Gastos Variáveis / Despesas ---
-function addExpense(description, amount, category, dateStr, paymentMethod) {
+async function addExpense(description, amount, category, dateStr, paymentMethod) {
   const db = getDatabase();
   const dateObj = new Date(dateStr + 'T12:00:00');
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
 
-  const result = db.prepare(`
-    INSERT INTO expenses (description, amount, category, date_str, year, month, payment_method)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(description, amount, category || 'Outros', dateStr, year, month, paymentMethod || 'Pix');
+  const res = await db.execute({
+    sql: 'INSERT INTO expenses (description, amount, category, date_str, year, month, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
+    args: [description, amount, category || 'Outros', dateStr, year, month, paymentMethod || 'Pix']
+  });
 
   return {
-    id: result.lastInsertRowid,
+    id: Number(res.lastInsertRowid),
     description,
     amount,
     category: category || 'Outros',
@@ -121,47 +123,46 @@ function addExpense(description, amount, category, dateStr, paymentMethod) {
   };
 }
 
-function updateExpense(id, description, amount, category, dateStr, paymentMethod) {
+async function updateExpense(id, description, amount, category, dateStr, paymentMethod) {
   const db = getDatabase();
   const dateObj = new Date(dateStr + 'T12:00:00');
   const year = dateObj.getFullYear();
   const month = dateObj.getMonth() + 1;
 
-  db.prepare(`
-    UPDATE expenses 
-    SET description = ?, amount = ?, category = ?, date_str = ?, year = ?, month = ?, payment_method = ?
-    WHERE id = ?
-  `).run(description, amount, category, dateStr, year, month, paymentMethod, id);
+  await db.execute({
+    sql: `UPDATE expenses 
+          SET description = ?, amount = ?, category = ?, date_str = ?, year = ?, month = ?, payment_method = ?
+          WHERE id = ?`,
+    args: [description, amount, category, dateStr, year, month, paymentMethod, id]
+  });
 
   return { id, description, amount, category, dateStr, year, month, paymentMethod };
 }
 
-function deleteExpense(id) {
+async function deleteExpense(id) {
   const db = getDatabase();
-  db.prepare('DELETE FROM expenses WHERE id = ?').run(id);
+  await db.execute({ sql: 'DELETE FROM expenses WHERE id = ?', args: [id] });
 }
 
-function getExpensesByMonth(year, month) {
+async function getExpensesByMonth(year, month) {
   const db = getDatabase();
-  const items = db.prepare(`
-    SELECT * FROM expenses
-    WHERE year = ? AND month = ?
-    ORDER BY date_str DESC, id DESC
-  `).all(year, month);
+  const resItems = await db.execute({
+    sql: 'SELECT * FROM expenses WHERE year = ? AND month = ? ORDER BY date_str DESC, id DESC',
+    args: [year, month]
+  });
 
-  const totalRow = db.prepare(`
-    SELECT COALESCE(SUM(amount), 0) as total
-    FROM expenses
-    WHERE year = ? AND month = ?
-  `).get(year, month);
+  const resTotal = await db.execute({
+    sql: 'SELECT COALESCE(SUM(amount), 0) as total FROM expenses WHERE year = ? AND month = ?',
+    args: [year, month]
+  });
 
   return {
-    items,
-    total: totalRow ? totalRow.total : 0
+    items: resItems.rows,
+    total: resTotal.rows[0] ? Number(resTotal.rows[0].total) : 0
   };
 }
 
-function getAllExpenses(year = null, month = null) {
+async function getAllExpenses(year = null, month = null) {
   const db = getDatabase();
   let query = 'SELECT * FROM expenses';
   const params = [];
@@ -170,56 +171,56 @@ function getAllExpenses(year = null, month = null) {
     params.push(year, month);
   }
   query += ' ORDER BY date_str DESC, id DESC';
-  return db.prepare(query).all(...params);
+  const res = await db.execute({ sql: query, args: params });
+  return res.rows;
 }
 
 // --- Devedores & Parcelas ---
-function addDebtor(name, phone, notes) {
+async function addDebtor(name, phone, notes) {
   const db = getDatabase();
-  const result = db.prepare(`
-    INSERT INTO debtors (name, phone, notes)
-    VALUES (?, ?, ?)
-  `).run(name, phone || '', notes || '');
-  return { id: result.lastInsertRowid, name, phone, notes };
+  const res = await db.execute({
+    sql: 'INSERT INTO debtors (name, phone, notes) VALUES (?, ?, ?)',
+    args: [name, phone || '', notes || '']
+  });
+  return { id: Number(res.lastInsertRowid), name, phone, notes };
 }
 
-function updateDebtor(id, name, phone, notes) {
+async function updateDebtor(id, name, phone, notes) {
   const db = getDatabase();
-  db.prepare(`
-    UPDATE debtors
-    SET name = ?, phone = ?, notes = ?
-    WHERE id = ?
-  `).run(name, phone || '', notes || '', id);
+  await db.execute({
+    sql: 'UPDATE debtors SET name = ?, phone = ?, notes = ? WHERE id = ?',
+    args: [name, phone || '', notes || '', id]
+  });
 }
 
-function deleteDebtor(id) {
+async function deleteDebtor(id) {
   const db = getDatabase();
-  db.prepare('DELETE FROM debt_installments WHERE debtor_id = ?').run(id);
-  db.prepare('DELETE FROM debt_items WHERE debtor_id = ?').run(id);
-  db.prepare('DELETE FROM debtors WHERE id = ?').run(id);
+  await db.execute({ sql: 'DELETE FROM debt_installments WHERE debtor_id = ?', args: [id] });
+  await db.execute({ sql: 'DELETE FROM debt_items WHERE debtor_id = ?', args: [id] });
+  await db.execute({ sql: 'DELETE FROM debtors WHERE id = ?', args: [id] });
 }
 
-function getDebtorById(id) {
+async function getDebtorById(id) {
   const db = getDatabase();
-  return db.prepare('SELECT * FROM debtors WHERE id = ?').get(id);
+  const res = await db.execute({ sql: 'SELECT * FROM debtors WHERE id = ?', args: [id] });
+  return res.rows[0] || null;
 }
 
-function addDebtItem(debtorId, description, totalAmount, installmentsCount, startDateStr) {
+async function addDebtItem(debtorId, description, totalAmount, installmentsCount, startDateStr) {
   const db = getDatabase();
-  const debtor = db.prepare('SELECT id FROM debtors WHERE id = ?').get(debtorId);
-  if (!debtor) {
+  const checkDebtor = await db.execute({ sql: 'SELECT id FROM debtors WHERE id = ?', args: [debtorId] });
+  if (checkDebtor.rows.length === 0) {
     throw new Error(`Pessoa com ID ${debtorId} não existe ou foi excluída.`);
   }
 
   const count = parseInt(installmentsCount, 10) || 1;
-  const itemResult = db.prepare(`
-    INSERT INTO debt_items (debtor_id, description, total_amount, installments_count, start_date)
-    VALUES (?, ?, ?, ?, ?)
-  `).run(debtorId, description, totalAmount, count, startDateStr);
+  const itemResult = await db.execute({
+    sql: 'INSERT INTO debt_items (debtor_id, description, total_amount, installments_count, start_date) VALUES (?, ?, ?, ?, ?)',
+    args: [debtorId, description, totalAmount, count, startDateStr]
+  });
 
-  const debtItemId = itemResult.lastInsertRowid;
+  const debtItemId = Number(itemResult.lastInsertRowid);
   const installmentAmount = Math.round((totalAmount / count) * 100) / 100;
-  // Ajuste de centavos na última parcela se houver dízima
   const remainder = Math.round((totalAmount - (installmentAmount * count)) * 100) / 100;
 
   const startDate = new Date(startDateStr + 'T12:00:00');
@@ -234,147 +235,153 @@ function addDebtItem(debtorId, description, totalAmount, installmentsCount, star
 
     const amount = (i === count) ? (installmentAmount + remainder) : installmentAmount;
 
-    db.prepare(`
-      INSERT INTO debt_installments (
-        debt_item_id, debtor_id, installment_number, total_installments, 
-        amount, due_date, due_year, due_month, status
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')
-    `).run(debtItemId, debtorId, i, count, amount, dueDateStr, dueYear, dueMonth);
+    await db.execute({
+      sql: `INSERT INTO debt_installments (
+              debt_item_id, debtor_id, installment_number, total_installments, 
+              amount, due_date, due_year, due_month, status
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'PENDING')`,
+      args: [debtItemId, debtorId, i, count, amount, dueDateStr, dueYear, dueMonth]
+    });
   }
 
   return { debtItemId, debtorId, description, totalAmount, count };
 }
 
-function deleteDebtItem(debtItemId) {
+async function deleteDebtItem(debtItemId) {
   const db = getDatabase();
-  db.prepare('DELETE FROM debt_installments WHERE debt_item_id = ?').run(debtItemId);
-  db.prepare('DELETE FROM debt_items WHERE id = ?').run(debtItemId);
+  await db.execute({ sql: 'DELETE FROM debt_installments WHERE debt_item_id = ?', args: [debtItemId] });
+  await db.execute({ sql: 'DELETE FROM debt_items WHERE id = ?', args: [debtItemId] });
 }
 
-function setInstallmentStatus(installmentId, isPaid) {
+async function setInstallmentStatus(installmentId, isPaid) {
   const db = getDatabase();
   const status = isPaid ? 'PAID' : 'PENDING';
   const paidAt = isPaid ? new Date().toISOString() : null;
-  db.prepare(`
-    UPDATE debt_installments
-    SET status = ?, paid_at = ?
-    WHERE id = ?
-  `).run(status, paidAt, installmentId);
+  await db.execute({
+    sql: 'UPDATE debt_installments SET status = ?, paid_at = ? WHERE id = ?',
+    args: [status, paidAt, installmentId]
+  });
 }
 
-function payAllDebtorInstallments(debtorId) {
+async function payAllDebtorInstallments(debtorId) {
   const db = getDatabase();
-  const paidAt = new Date().toISOString();
-  db.prepare(`
-    UPDATE debt_installments
-    SET status = 'PAID', paid_at = ?
-    WHERE debtor_id = ? AND status = 'PENDING'
-  `).run(paidAt, debtorId);
+  const now = new Date().toISOString();
+  await db.execute({
+    sql: "UPDATE debt_installments SET status = 'PAID', paid_at = ? WHERE debtor_id = ? AND status = 'PENDING'",
+    args: [now, debtorId]
+  });
 }
 
-// Obter devedores com resumo completo de valores
-function getAllDebtorsSummary() {
+async function getAllDebtorsSummary() {
   const db = getDatabase();
-  const debtors = db.prepare(`
-    SELECT d.*,
-      COALESCE((SELECT SUM(amount) FROM debt_installments WHERE debtor_id = d.id), 0) as total_debt,
-      COALESCE((SELECT SUM(amount) FROM debt_installments WHERE debtor_id = d.id AND status = 'PAID'), 0) as total_paid,
-      COALESCE((SELECT SUM(amount) FROM debt_installments WHERE debtor_id = d.id AND status = 'PENDING'), 0) as total_pending
-    FROM debtors d
-    ORDER BY total_pending DESC, d.name ASC
-  `).all();
+  const debtorsRes = await db.execute('SELECT * FROM debtors ORDER BY name ASC');
+  const debtors = debtorsRes.rows;
 
+  const result = [];
   for (const debtor of debtors) {
-    debtor.items = db.prepare(`
-      SELECT di.*,
-        (SELECT COUNT(*) FROM debt_installments WHERE debt_item_id = di.id AND status = 'PAID') as paid_count
-      FROM debt_items di
-      WHERE di.debtor_id = ?
-      ORDER BY di.id DESC
-    `).all(debtor.id);
+    const itemsRes = await db.execute({
+      sql: 'SELECT * FROM debt_items WHERE debtor_id = ? ORDER BY id DESC',
+      args: [debtor.id]
+    });
+    const items = itemsRes.rows;
 
-    for (const item of debtor.items) {
-      item.installments = db.prepare(`
-        SELECT * FROM debt_installments
-        WHERE debt_item_id = ?
-        ORDER BY installment_number ASC
-      `).all(item.id);
+    let totalDebt = 0;
+    let totalPaid = 0;
+    let totalPending = 0;
+
+    for (const item of items) {
+      const installmentsRes = await db.execute({
+        sql: 'SELECT * FROM debt_installments WHERE debt_item_id = ? ORDER BY installment_number ASC',
+        args: [item.id]
+      });
+      item.installments = installmentsRes.rows;
+
+      for (const inst of item.installments) {
+        totalDebt += Number(inst.amount);
+        if (inst.status === 'PAID') {
+          totalPaid += Number(inst.amount);
+        } else {
+          totalPending += Number(inst.amount);
+        }
+      }
     }
+
+    result.push({
+      ...debtor,
+      total_debt: Math.round(totalDebt * 100) / 100,
+      total_paid: Math.round(totalPaid * 100) / 100,
+      total_pending: Math.round(totalPending * 100) / 100,
+      items
+    });
   }
 
-  return debtors;
+  return result;
 }
 
-// BUSCA AUTOMÁTICA DE VALORES A RECEBER NO MÊS
-// Esta função é o coração do preenchimento automático solicitado pelo Saulo:
-// Puxa nome da pessoa, descrição da compra, parcela atual e valor de todas as cobranças daquele mês!
-function getReceivablesForMonth(year, month) {
+// --- Preenchimento Automático do Mês ---
+async function getReceivablesForMonth(year, month) {
   const db = getDatabase();
-  return db.prepare(`
-    SELECT 
-      inst.id as installment_id,
-      inst.installment_number,
-      inst.total_installments,
-      inst.amount,
-      inst.due_date,
-      inst.status,
-      inst.paid_at,
-      d.id as debtor_id,
-      d.name as debtor_name,
-      d.phone as debtor_phone,
-      item.id as debt_item_id,
-      item.description as item_description
-    FROM debt_installments inst
-    JOIN debtors d ON inst.debtor_id = d.id
-    JOIN debt_items item ON inst.debt_item_id = item.id
-    WHERE inst.due_year = ? AND inst.due_month = ?
-    ORDER BY inst.status ASC, inst.due_date ASC, d.name ASC
-  `).all(year, month);
+  const res = await db.execute({
+    sql: `SELECT 
+            di.id as installment_id,
+            di.amount,
+            di.installment_number,
+            di.total_installments,
+            di.due_date,
+            di.status,
+            d.id as debtor_id,
+            d.name as debtor_name,
+            d.phone as debtor_phone,
+            item.description as item_description
+          FROM debt_installments di
+          JOIN debtors d ON di.debtor_id = d.id
+          JOIN debt_items item ON di.debt_item_id = item.id
+          WHERE di.due_year = ? AND di.due_month = ?
+          ORDER BY di.due_date ASC`,
+    args: [year, month]
+  });
+
+  return res.rows;
 }
 
-// Histórico de valores a receber por mês (para gráficos de comparativo)
-function getReceivablesMonthlyStats() {
+// --- Relatórios e Estatísticas ---
+async function getReceivablesMonthlyStats() {
   const db = getDatabase();
-  return db.prepare(`
-    SELECT 
-      due_year as year,
-      due_month as month,
-      COALESCE(SUM(amount), 0) as total_expected,
-      COALESCE(SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END), 0) as total_received,
-      COALESCE(SUM(CASE WHEN status = 'PENDING' THEN amount ELSE 0 END), 0) as total_pending
+  const res = await db.execute(`
+    SELECT due_year as year, due_month as month,
+      SUM(CASE WHEN status = 'PAID' THEN amount ELSE 0 END) as total_received,
+      SUM(CASE WHEN status = 'PENDING' THEN amount ELSE 0 END) as total_pending
     FROM debt_installments
     GROUP BY due_year, due_month
-    ORDER BY due_year ASC, due_month ASC
-  `).all();
+    ORDER BY due_year DESC, due_month DESC
+    LIMIT 6
+  `);
+  return res.rows;
 }
 
-// Histórico mensal de despesas (para gráficos de consumo comparativo)
-function getExpensesMonthlyStats() {
+async function getExpensesMonthlyStats() {
   const db = getDatabase();
-  return db.prepare(`
-    SELECT 
-      year,
-      month,
-      COALESCE(SUM(amount), 0) as total
+  const res = await db.execute(`
+    SELECT year, month, SUM(amount) as total
     FROM expenses
     GROUP BY year, month
-    ORDER BY year ASC, month ASC
-  `).all();
+    ORDER BY year DESC, month DESC
+    LIMIT 6
+  `);
+  return res.rows;
 }
 
-// Gastos por categoria em um determinado mês
-function getExpensesByCategory(year, month) {
+async function getExpensesByCategory(year, month) {
   const db = getDatabase();
-  return db.prepare(`
-    SELECT 
-      category,
-      COALESCE(SUM(amount), 0) as total,
-      COUNT(*) as count
-    FROM expenses
-    WHERE year = ? AND month = ?
-    GROUP BY category
-    ORDER BY total DESC
-  `).all(year, month);
+  const res = await db.execute({
+    sql: `SELECT category, SUM(amount) as total, COUNT(*) as count
+          FROM expenses
+          WHERE year = ? AND month = ?
+          GROUP BY category
+          ORDER BY total DESC`,
+    args: [year, month]
+  });
+  return res.rows;
 }
 
 module.exports = {

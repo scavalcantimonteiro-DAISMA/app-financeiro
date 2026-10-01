@@ -5,6 +5,8 @@ module.exports = {
   PORT: process.env.PORT || 3000,
   DB_PATH: path.join(__dirname, '..', 'financeiro.db'),
   AUTH_DIR: path.join(__dirname, '..', 'auth_info_baileys'),
+  TURSO_DATABASE_URL: process.env.TURSO_DATABASE_URL || '',
+  TURSO_AUTH_TOKEN: process.env.TURSO_AUTH_TOKEN || '',
   
   // Regras de Alertas Financeiros
   ALERT_DAILY_LIMIT: parseFloat(process.env.ALERT_DAILY_LIMIT || '100.00'), // R$ 100 por dia

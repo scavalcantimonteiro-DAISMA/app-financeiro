@@ -20,21 +20,22 @@ function getCurrentYearMonth() {
 // ==========================================
 // 1. CONFIGURAÇÕES & USUÁRIO
 // ==========================================
-app.get('/api/config', (req, res) => {
+app.get('/api/config', async (req, res) => {
   try {
-    const settings = repo.getSettings();
+    const settings = await repo.getSettings();
     res.json(settings);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/config', (req, res) => {
+app.post('/api/config', async (req, res) => {
   try {
     const { user_name, pix_key } = req.body;
-    if (user_name) repo.updateSetting('user_name', user_name);
-    if (pix_key) repo.updateSetting('pix_key', pix_key);
-    res.json({ ok: true, settings: repo.getSettings() });
+    if (user_name) await repo.updateSetting('user_name', user_name);
+    if (pix_key) await repo.updateSetting('pix_key', pix_key);
+    const updated = await repo.getSettings();
+    res.json({ ok: true, settings: updated });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -43,46 +44,42 @@ app.post('/api/config', (req, res) => {
 // ==========================================
 // 2. DASHBOARD & BALANÇO GERAL DO MÊS
 // ==========================================
-app.get('/api/dashboard', (req, res) => {
+app.get('/api/dashboard', async (req, res) => {
   try {
     const current = getCurrentYearMonth();
     const year = parseInt(req.query.year, 10) || current.year;
     const month = parseInt(req.query.month, 10) || current.month;
 
     // 1. Rendas do mês
-    const incomes = repo.getIncomesByMonth(year, month);
-    const totalIncome = incomes.reduce((acc, curr) => acc + curr.amount, 0);
+    const incomes = await repo.getIncomesByMonth(year, month);
+    const totalIncome = incomes.reduce((acc, curr) => acc + Number(curr.amount), 0);
 
     // 2. Contas Fixas do mês com status
-    const fixedExpenses = repo.getFixedExpensesWithStatus(year, month);
-    const totalFixed = fixedExpenses.reduce((acc, curr) => acc + curr.amount, 0);
+    const fixedExpenses = await repo.getFixedExpensesWithStatus(year, month);
+    const totalFixed = fixedExpenses.reduce((acc, curr) => acc + Number(curr.amount), 0);
     const paidFixed = fixedExpenses
       .filter(f => f.is_paid === 1)
-      .reduce((acc, curr) => acc + curr.amount, 0);
+      .reduce((acc, curr) => acc + Number(curr.amount), 0);
     const pendingFixed = totalFixed - paidFixed;
 
     // 3. Gastos Variáveis do mês
-    const expensesData = repo.getExpensesByMonth(year, month);
+    const expensesData = await repo.getExpensesByMonth(year, month);
     const totalVariableExpenses = expensesData.total;
 
     // 4. VALORES A RECEBER DE TERCEIROS (PREENCHIMENTO 100% AUTOMÁTICO!)
-    // O sistema busca todas as parcelas e compras de devedores que vencem neste mês
-    const receivables = repo.getReceivablesForMonth(year, month);
-    const totalReceivables = receivables.reduce((acc, curr) => acc + curr.amount, 0);
+    const receivables = await repo.getReceivablesForMonth(year, month);
+    const totalReceivables = receivables.reduce((acc, curr) => acc + Number(curr.amount), 0);
     const receivedFromDebtors = receivables
       .filter(r => r.status === 'PAID')
-      .reduce((acc, curr) => acc + curr.amount, 0);
+      .reduce((acc, curr) => acc + Number(curr.amount), 0);
     const pendingReceivables = totalReceivables - receivedFromDebtors;
 
     // 5. Cálculos de Balanço e Sobra Real
-    // Sobra Projetada: se tudo entrar e tudo for pago
     const projectedLeftover = (totalIncome + totalReceivables) - (totalFixed + totalVariableExpenses);
-
-    // Saldo Real Atual: o que realmente já entrou menos o que já saiu
     const currentRealBalance = (totalIncome + receivedFromDebtors) - (paidFixed + totalVariableExpenses);
 
     // Categorias de gastos para mini-resumo
-    const categories = repo.getExpensesByCategory(year, month);
+    const categories = await repo.getExpensesByCategory(year, month);
 
     res.json({
       period: { year, month },
@@ -99,13 +96,13 @@ app.get('/api/dashboard', (req, res) => {
       variableExpenses: {
         total: totalVariableExpenses,
         count: expensesData.items.length,
-        items: expensesData.items.slice(0, 10) // 10 mais recentes para o dashboard
+        items: expensesData.items.slice(0, 10)
       },
       receivables: {
         total: totalReceivables,
         received: receivedFromDebtors,
         pending: pendingReceivables,
-        items: receivables // Lista discriminada com devedor, descrição, parcela e valor
+        items: receivables
       },
       balance: {
         projectedLeftover,
@@ -121,17 +118,17 @@ app.get('/api/dashboard', (req, res) => {
 // ==========================================
 // 3. DESPESAS / GASTOS
 // ==========================================
-app.get('/api/expenses', (req, res) => {
+app.get('/api/expenses', async (req, res) => {
   try {
     const year = req.query.year ? parseInt(req.query.year, 10) : null;
     const month = req.query.month ? parseInt(req.query.month, 10) : null;
     
     if (year && month) {
-      const result = repo.getExpensesByMonth(year, month);
+      const result = await repo.getExpensesByMonth(year, month);
       res.json(result);
     } else {
-      const items = repo.getAllExpenses();
-      const total = items.reduce((acc, curr) => acc + curr.amount, 0);
+      const items = await repo.getAllExpenses();
+      const total = items.reduce((acc, curr) => acc + Number(curr.amount), 0);
       res.json({ items, total });
     }
   } catch (err) {
@@ -139,7 +136,7 @@ app.get('/api/expenses', (req, res) => {
   }
 });
 
-app.post('/api/expenses', (req, res) => {
+app.post('/api/expenses', async (req, res) => {
   try {
     const { description, amount, category, dateStr, paymentMethod } = req.body;
     if (!description || !amount || isNaN(amount) || amount <= 0) {
@@ -148,22 +145,19 @@ app.post('/api/expenses', (req, res) => {
 
     const todayStr = new Date().toISOString().split('T')[0];
     const finalDate = dateStr || todayStr;
+    const finalMethod = paymentMethod || 'Pix';
 
-    const expense = repo.addExpense(
+    const expense = await repo.addExpense(
       description.trim(),
       parseFloat(amount),
       category || 'Outros',
       finalDate,
-      paymentMethod || 'Pix'
+      finalMethod
     );
-
-    // Retorna a mensagem de feedback solicitada pelo usuário
-    const formattedVal = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(expense.amount);
-    const feedbackMessage = `Gasto contabilizado: ${expense.description} - ${formattedVal}`;
 
     res.status(201).json({
       ok: true,
-      message: feedbackMessage,
+      message: `Gasto contabilizado: ${expense.description} - R$ ${expense.amount.toFixed(2)}`,
       expense
     });
   } catch (err) {
@@ -171,34 +165,42 @@ app.post('/api/expenses', (req, res) => {
   }
 });
 
-app.put('/api/expenses/:id', (req, res) => {
+app.put('/api/expenses/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { description, amount, category, dateStr, paymentMethod } = req.body;
 
     if (!description || !amount || isNaN(amount) || amount <= 0) {
-      return res.status(400).json({ error: 'Descrição e valor válidos são obrigatórios.' });
+      return res.status(400).json({ error: 'Descrição e valor válido são obrigatórios.' });
     }
 
-    const updated = repo.updateExpense(
+    const todayStr = new Date().toISOString().split('T')[0];
+    const finalDate = dateStr || todayStr;
+    const finalMethod = paymentMethod || 'Pix';
+
+    const expense = await repo.updateExpense(
       id,
       description.trim(),
       parseFloat(amount),
       category || 'Outros',
-      dateStr,
-      paymentMethod || 'Pix'
+      finalDate,
+      finalMethod
     );
 
-    res.json({ ok: true, expense: updated });
+    res.json({
+      ok: true,
+      message: `Gasto atualizado: ${expense.description} - R$ ${expense.amount.toFixed(2)}`,
+      expense
+    });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/expenses/:id', (req, res) => {
+app.delete('/api/expenses/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    repo.deleteExpense(id);
+    await repo.deleteExpense(id);
     res.json({ ok: true, message: 'Gasto excluído com sucesso.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -206,48 +208,48 @@ app.delete('/api/expenses/:id', (req, res) => {
 });
 
 // ==========================================
-// 4. DEVEDORES & COBRANÇAS
+// 4. QUEM ME DEVE (DEVEDORES & PARCELAS)
 // ==========================================
-app.get('/api/debtors', (req, res) => {
+app.get('/api/debtors', async (req, res) => {
   try {
-    const debtors = repo.getAllDebtorsSummary();
+    const debtors = await repo.getAllDebtorsSummary();
     res.json(debtors);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/debtors', (req, res) => {
+app.post('/api/debtors', async (req, res) => {
   try {
     const { name, phone, notes } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'O nome da pessoa é obrigatório.' });
     }
-    const debtor = repo.addDebtor(name.trim(), phone ? phone.trim() : '', notes ? notes.trim() : '');
+    const debtor = await repo.addDebtor(name.trim(), phone ? phone.trim() : '', notes ? notes.trim() : '');
     res.status(201).json(debtor);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/debtors/:id', (req, res) => {
+app.put('/api/debtors/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { name, phone, notes } = req.body;
     if (!name || !name.trim()) {
       return res.status(400).json({ error: 'O nome da pessoa é obrigatório.' });
     }
-    repo.updateDebtor(id, name.trim(), phone ? phone.trim() : '', notes ? notes.trim() : '');
+    await repo.updateDebtor(id, name.trim(), phone ? phone.trim() : '', notes ? notes.trim() : '');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/debtors/:id', (req, res) => {
+app.delete('/api/debtors/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    repo.deleteDebtor(id);
+    await repo.deleteDebtor(id);
     res.json({ ok: true, message: 'Devedor excluído com sucesso.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -255,14 +257,14 @@ app.delete('/api/debtors/:id', (req, res) => {
 });
 
 // Adicionar uma compra/dívida parcelada para um devedor
-app.post('/api/debtors/:id/debts', (req, res) => {
+app.post('/api/debtors/:id/debts', async (req, res) => {
   try {
     const debtorId = parseInt(req.params.id, 10);
     if (!debtorId || isNaN(debtorId)) {
       return res.status(400).json({ error: 'ID da pessoa inválido ou não informado.' });
     }
 
-    const debtor = repo.getDebtorById(debtorId);
+    const debtor = await repo.getDebtorById(debtorId);
     if (!debtor) {
       return res.status(404).json({ error: `Pessoa com código ${debtorId} não foi encontrada no sistema.` });
     }
@@ -279,7 +281,7 @@ app.post('/api/debtors/:id/debts', (req, res) => {
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
-    const item = repo.addDebtItem(
+    const item = await repo.addDebtItem(
       debtorId,
       description.trim(),
       amountNum,
@@ -293,10 +295,10 @@ app.post('/api/debtors/:id/debts', (req, res) => {
   }
 });
 
-app.delete('/api/debtors/debts/:debtItemId', (req, res) => {
+app.delete('/api/debtors/debts/:debtItemId', async (req, res) => {
   try {
     const debtItemId = parseInt(req.params.debtItemId, 10);
-    repo.deleteDebtItem(debtItemId);
+    await repo.deleteDebtItem(debtItemId);
     res.json({ ok: true, message: 'Item de dívida excluído com sucesso.' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -304,11 +306,11 @@ app.delete('/api/debtors/debts/:debtItemId', (req, res) => {
 });
 
 // Marcar parcela como PAGA ou PENDENTE
-app.patch('/api/debtors/installments/:installmentId', (req, res) => {
+app.patch('/api/debtors/installments/:installmentId', async (req, res) => {
   try {
     const installmentId = parseInt(req.params.installmentId, 10);
     const { isPaid } = req.body;
-    repo.setInstallmentStatus(installmentId, Boolean(isPaid));
+    await repo.setInstallmentStatus(installmentId, Boolean(isPaid));
     res.json({ ok: true, status: isPaid ? 'PAID' : 'PENDING' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -316,10 +318,10 @@ app.patch('/api/debtors/installments/:installmentId', (req, res) => {
 });
 
 // Quitar todas as parcelas pendentes de um devedor
-app.post('/api/debtors/:id/pay-all', (req, res) => {
+app.post('/api/debtors/:id/pay-all', async (req, res) => {
   try {
     const debtorId = parseInt(req.params.id, 10);
-    repo.payAllDebtorInstallments(debtorId);
+    await repo.payAllDebtorInstallments(debtorId);
     res.json({ ok: true, message: 'Todas as parcelas foram quitadas com sucesso!' });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -329,57 +331,57 @@ app.post('/api/debtors/:id/pay-all', (req, res) => {
 // ==========================================
 // 5. CONTAS FIXAS & RENDAS
 // ==========================================
-app.get('/api/fixed-expenses', (req, res) => {
+app.get('/api/fixed-expenses', async (req, res) => {
   try {
     const current = getCurrentYearMonth();
     const year = parseInt(req.query.year, 10) || current.year;
     const month = parseInt(req.query.month, 10) || current.month;
-    const list = repo.getFixedExpensesWithStatus(year, month);
+    const list = await repo.getFixedExpensesWithStatus(year, month);
     res.json(list);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/fixed-expenses', (req, res) => {
+app.post('/api/fixed-expenses', async (req, res) => {
   try {
     const { name, amount, dueDay, category } = req.body;
     if (!name || !amount || isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: 'Nome e valor válido são obrigatórios.' });
     }
-    const item = repo.addFixedExpense(name.trim(), parseFloat(amount), parseInt(dueDay, 10) || 10, category || 'Moradia');
+    const item = await repo.addFixedExpense(name.trim(), parseFloat(amount), parseInt(dueDay, 10) || 10, category || 'Moradia');
     res.status(201).json(item);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.put('/api/fixed-expenses/:id', (req, res) => {
+app.put('/api/fixed-expenses/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { name, amount, dueDay, category } = req.body;
-    repo.updateFixedExpense(id, name.trim(), parseFloat(amount), parseInt(dueDay, 10) || 10, category || 'Moradia');
+    await repo.updateFixedExpense(id, name.trim(), parseFloat(amount), parseInt(dueDay, 10) || 10, category || 'Moradia');
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete('/api/fixed-expenses/:id', (req, res) => {
+app.delete('/api/fixed-expenses/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    repo.deleteFixedExpense(id);
+    await repo.deleteFixedExpense(id);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/fixed-expenses/:id/toggle-payment', (req, res) => {
+app.post('/api/fixed-expenses/:id/toggle-payment', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
     const { year, month, isPaid } = req.body;
-    repo.toggleFixedExpensePayment(id, parseInt(year, 10), parseInt(month, 10), Boolean(isPaid));
+    await repo.toggleFixedExpensePayment(id, parseInt(year, 10), parseInt(month, 10), Boolean(isPaid));
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -387,25 +389,25 @@ app.post('/api/fixed-expenses/:id/toggle-payment', (req, res) => {
 });
 
 // Rendas
-app.get('/api/incomes', (req, res) => {
+app.get('/api/incomes', async (req, res) => {
   try {
     const current = getCurrentYearMonth();
     const year = parseInt(req.query.year, 10) || current.year;
     const month = parseInt(req.query.month, 10) || current.month;
-    const incomes = repo.getIncomesByMonth(year, month);
+    const incomes = await repo.getIncomesByMonth(year, month);
     res.json(incomes);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post('/api/incomes', (req, res) => {
+app.post('/api/incomes', async (req, res) => {
   try {
     const { year, month, description, amount, receivedDate } = req.body;
     if (!description || !amount || isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: 'Descrição e valor válido são obrigatórios.' });
     }
-    const item = repo.addIncome(
+    const item = await repo.addIncome(
       parseInt(year, 10),
       parseInt(month, 10),
       description.trim(),
@@ -418,10 +420,10 @@ app.post('/api/incomes', (req, res) => {
   }
 });
 
-app.delete('/api/incomes/:id', (req, res) => {
+app.delete('/api/incomes/:id', async (req, res) => {
   try {
     const id = parseInt(req.params.id, 10);
-    repo.deleteIncome(id);
+    await repo.deleteIncome(id);
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -431,16 +433,16 @@ app.delete('/api/incomes/:id', (req, res) => {
 // ==========================================
 // 6. RELATÓRIOS & GRÁFICOS
 // ==========================================
-app.get('/api/reports/stats', (req, res) => {
+app.get('/api/reports/stats', async (req, res) => {
   try {
     const current = getCurrentYearMonth();
     const year = parseInt(req.query.year, 10) || current.year;
     const month = parseInt(req.query.month, 10) || current.month;
 
-    const expensesByCategory = repo.getExpensesByCategory(year, month);
-    const expensesMonthly = repo.getExpensesMonthlyStats();
-    const debtorsMonthly = repo.getReceivablesMonthlyStats();
-    const debtorsSummary = repo.getAllDebtorsSummary();
+    const expensesByCategory = await repo.getExpensesByCategory(year, month);
+    const expensesMonthly = await repo.getExpensesMonthlyStats();
+    const debtorsMonthly = await repo.getReceivablesMonthlyStats();
+    const debtorsSummary = await repo.getAllDebtorsSummary();
 
     res.json({
       period: { year, month },

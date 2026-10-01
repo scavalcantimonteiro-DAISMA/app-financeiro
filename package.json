@@ -19,6 +19,7 @@
   "author": "Saulo",
   "license": "MIT",
   "dependencies": {
+    "@libsql/client": "^0.18.0",
     "@whiskeysockets/baileys": "^7.0.0-rc14",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
