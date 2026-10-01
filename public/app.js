@@ -587,7 +587,10 @@ function renderDebtorsCards(debtors) {
             <div style="font-size: 1.1rem; font-weight: 800; color: ${pending > 0 ? '#f87171' : '#34d399'};">
               ${formatBRL(pending)}
             </div>
-            <span style="font-size: 0.72rem; color: var(--text-muted);">em aberto</span>
+            <div style="display: flex; gap: 6px; justify-content: flex-end; margin-top: 4px;">
+              <button class="icon-action-btn" onclick="editDebtorClick(${d.id})" title="Editar Pessoa"><i class="fa-solid fa-pen"></i></button>
+              <button class="icon-action-btn delete" onclick="deleteDebtorClick(${d.id}, '${d.name.replace(/'/g, "\\'")}')" title="Excluir Pessoa"><i class="fa-solid fa-trash"></i></button>
+            </div>
           </div>
         </div>
 
@@ -884,25 +887,107 @@ async function deleteDebtItemClick(debtItemId) {
 
 async function handleDebtorSubmit(event) {
   event.preventDefault();
-  const name = document.getElementById('debtor-name').value;
-  const phone = document.getElementById('debtor-phone').value;
-  const notes = document.getElementById('debtor-notes').value;
+  const id = document.getElementById('debtor-id').value;
+  const name = (document.getElementById('debtor-name').value || '').trim();
+  const phone = (document.getElementById('debtor-phone').value || '').trim();
+  const notes = (document.getElementById('debtor-notes').value || '').trim();
+
+  if (!name) {
+    alert('Por favor, informe o nome da pessoa.');
+    return;
+  }
 
   try {
-    const res = await fetch('/api/debtors', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, phone, notes })
-    });
-    const debtor = await res.json();
-    if (debtor.id) {
-      showFeedbackToast(`Pessoa ${name} cadastrada com sucesso!`);
-      closeModal('modal-debtor');
-      document.getElementById('form-debtor').reset();
-      await loadDebtors();
+    let res;
+    if (id) {
+      res = await fetch(`/api/debtors/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, notes })
+      });
+    } else {
+      res = await fetch('/api/debtors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, phone, notes })
+      });
     }
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao salvar pessoa.');
+      return;
+    }
+
+    showFeedbackToast(id ? `Dados de ${name} atualizados!` : `Pessoa ${name} cadastrada com sucesso!`);
+    closeModal('modal-debtor');
+    document.getElementById('form-debtor').reset();
+    document.getElementById('debtor-id').value = '';
+    document.getElementById('modal-debtor-title').textContent = 'Cadastrar Pessoa';
+
+    await loadDebtors();
+    await loadDashboard();
   } catch (err) {
-    alert('Erro ao cadastrar pessoa.');
+    alert('Erro de conexão ao salvar pessoa.');
+  }
+}
+
+function editDebtorClick(debtorId) {
+  const debtor = state.debtors.find(d => d.id === debtorId);
+  if (!debtor) return;
+
+  document.getElementById('debtor-id').value = debtor.id;
+  document.getElementById('debtor-name').value = debtor.name;
+  document.getElementById('debtor-phone').value = debtor.phone || '';
+  document.getElementById('debtor-notes').value = debtor.notes || '';
+  document.getElementById('modal-debtor-title').textContent = 'Editar Pessoa';
+  openModal('modal-debtor');
+}
+
+async function deleteDebtorClick(debtorId, debtorName) {
+  if (!confirm(`Deseja realmente excluir ${debtorName} e todas as suas compras e parcelas?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/debtors/${debtorId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao excluir pessoa.');
+      return;
+    }
+
+    showFeedbackToast(`Pessoa ${debtorName} excluída com sucesso.`);
+    await loadDebtors();
+    await loadDashboard();
+  } catch (err) {
+    alert('Erro de conexão ao excluir pessoa.');
+  }
+}
+
+async function deleteCurrentDebtorModal() {
+  if (!state.selectedDebtor) return;
+  const debtorId = state.selectedDebtor.id;
+  const debtorName = state.selectedDebtor.name;
+
+  if (!confirm(`Deseja realmente excluir ${debtorName} e todas as suas compras e parcelas?`)) {
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/debtors/${debtorId}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao excluir pessoa.');
+      return;
+    }
+
+    closeModal('modal-debtor-details');
+    showFeedbackToast(`Pessoa ${debtorName} excluída com sucesso.`);
+    await loadDebtors();
+    await loadDashboard();
+  } catch (err) {
+    alert('Erro de conexão ao excluir pessoa.');
   }
 }
 

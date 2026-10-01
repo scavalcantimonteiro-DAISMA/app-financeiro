@@ -500,12 +500,15 @@
         </div>
       </div>
 
-      <div style="display: flex; gap: 8px; margin-bottom: 16px;">
-        <button class="submit-btn" style="flex: 1; padding: 12px; margin: 0; font-size: 0.85rem;" onclick="openNewDebtForCurrent()">
+      <div style="display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap;">
+        <button class="submit-btn" style="flex: 1; min-width: 130px; padding: 12px; margin: 0; font-size: 0.85rem;" onclick="openNewDebtForCurrent()">
           <i class="fa-solid fa-plus"></i> Nova Compra
         </button>
         <button class="btn-export" style="background: rgba(16, 185, 129, 0.2); color: #34d399;" onclick="confirmPayAllDebtor()">
           <i class="fa-solid fa-check-double"></i> Quitar Tudo
+        </button>
+        <button class="btn-export" style="background: rgba(239, 68, 68, 0.2); color: #f87171;" onclick="deleteCurrentDebtorModal()">
+          <i class="fa-solid fa-trash"></i> Excluir Pessoa
         </button>
       </div>
 
