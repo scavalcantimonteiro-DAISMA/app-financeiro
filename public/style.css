@@ -650,6 +650,12 @@ body {
   transition: border-color 0.2s, background 0.2s;
 }
 
+.ios-select option {
+  background-color: #1a2234 !important;
+  color: #f8fafc !important;
+  padding: 12px;
+}
+
 .ios-input:focus, .ios-select:focus {
   border-color: var(--accent-indigo);
   background: rgba(255, 255, 255, 0.1);

@@ -832,16 +832,29 @@ function openNewDebtForCurrent() {
   if (!state.selectedDebtor) return;
   document.getElementById('debt-item-debtor-id').value = state.selectedDebtor.id;
   document.getElementById('debt-item-debtor-name').value = state.selectedDebtor.name;
+  
+  // Fecha o modal de detalhes antes de abrir o modal de nova dívida para aparecer imediatamente
+  closeModal('modal-debtor-details');
   openModal('modal-debt-item');
 }
 
 async function handleDebtItemSubmit(event) {
   event.preventDefault();
   const debtorId = document.getElementById('debt-item-debtor-id').value;
-  const description = document.getElementById('debt-item-desc').value;
-  const totalAmount = parseFloat(document.getElementById('debt-item-amount').value);
-  const installmentsCount = parseInt(document.getElementById('debt-item-installments').value, 10);
-  const startDate = document.getElementById('debt-item-date').value;
+  const description = (document.getElementById('debt-item-desc').value || '').trim();
+  const rawAmount = document.getElementById('debt-item-amount').value;
+  const totalAmount = parseAmount(rawAmount);
+  const installmentsCount = parseInt(document.getElementById('debt-item-installments').value, 10) || 1;
+  const startDate = document.getElementById('debt-item-date').value || new Date().toISOString().split('T')[0];
+
+  if (!description) {
+    alert('Por favor, informe a descrição da compra/dívida.');
+    return;
+  }
+  if (!totalAmount || totalAmount <= 0) {
+    alert('Por favor, informe um valor válido maior que zero.');
+    return;
+  }
 
   try {
     const res = await fetch(`/api/debtors/${debtorId}/debts`, {
@@ -850,19 +863,25 @@ async function handleDebtItemSubmit(event) {
       body: JSON.stringify({ description, totalAmount, installmentsCount, startDate })
     });
     const data = await res.json();
-    if (data.ok) {
-      showFeedbackToast(`Cobrança de ${formatBRL(totalAmount)} gerada em ${installmentsCount}x!`);
-      closeModal('modal-debt-item');
-      document.getElementById('form-debt-item').reset();
-      await loadDebtors();
-      await loadDashboard();
-      if (state.selectedDebtor) {
-        const updated = state.debtors.find(d => d.id === state.selectedDebtor.id);
-        if (updated) openDebtorDetails(updated.id);
-      }
+    if (!res.ok) {
+      alert(data.error || 'Erro ao registrar cobrança.');
+      return;
+    }
+
+    showFeedbackToast(`Cobrança de ${formatBRL(totalAmount)} gerada em ${installmentsCount}x!`);
+    closeModal('modal-debt-item');
+    document.getElementById('form-debt-item').reset();
+
+    await loadDebtors();
+    await loadDashboard();
+
+    // Reabre os detalhes atualizados da pessoa
+    if (state.selectedDebtor) {
+      const updated = state.debtors.find(d => d.id === state.selectedDebtor.id);
+      if (updated) openDebtorDetails(updated.id);
     }
   } catch (err) {
-    alert('Erro ao registrar cobrança.');
+    alert('Erro de conexão ao registrar cobrança.');
   }
 }
 
