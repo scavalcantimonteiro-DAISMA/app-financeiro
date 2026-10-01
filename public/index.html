@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Finanças">
+  <meta name="theme-color" content="#090d16">
+  <title>Finanças Saulo</title>
+  
+  <link rel="icon" type="image/svg+xml" href="/icon.svg">
+  <link rel="apple-touch-icon" href="/icon.svg">
+  <link rel="manifest" href="/manifest.json">
+  <link rel="stylesheet" href="/style.css">
+  
+  <!-- Fontes & Ícones -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+  <!-- Bibliotecas: Chart.js para gráficos e SheetJS para Excel -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+
+  <!-- Feedback Toast Notificação Flutuante no Topo -->
+  <div id="feedback-toast" class="feedback-toast">
+    <i class="fa-solid fa-circle-check"></i>
+    <span id="feedback-toast-msg">Gasto contabilizado!</span>
+  </div>
+
+  <div class="app-viewport">
+    
+    <!-- Topo Estilo iOS -->
+    <header class="ios-header">
+      <div class="user-profile">
+        <div class="avatar" id="header-avatar">S</div>
+        <div class="greeting">
+          <h1 id="header-user-name">Olá, Saulo</h1>
+          <p id="header-subtitle">Controle Financeiro</p>
+        </div>
+      </div>
+      
+      <!-- Seletor de Mês e Ano -->
+      <div class="month-selector">
+        <button class="month-btn" id="btn-prev-month" title="Mês Anterior">
+          <i class="fa-solid fa-chevron-left"></i>
+        </button>
+        <span class="current-month-label" id="current-month-label">Carregando...</span>
+        <button class="month-btn" id="btn-next-month" title="Próximo Mês">
+          <i class="fa-solid fa-chevron-right"></i>
+        </button>
+      </div>
+    </header>
+
+    <!-- ========================================================
+         TELA 1: INÍCIO (DASHBOARD)
+         ======================================================== -->
+    <main id="screen-dashboard" class="app-screen active">
+      
+      <!-- Card Principal: Balanço do Mês -->
+      <section class="glass-card balance-hero">
+        <div class="balance-title">Sobra Livre Projetada</div>
+        <div class="balance-amount" id="dash-projected-leftover">R$ 0,00</div>
+        
+        <div class="balance-grid">
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-arrow-down" style="color: var(--accent-green)"></i> Renda do Mês</span>
+            <span class="stat-value green" id="dash-income">R$ 0,00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-file-invoice" style="color: var(--accent-amber)"></i> Contas Fixas</span>
+            <span class="stat-value amber" id="dash-fixed">R$ 0,00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-arrow-up" style="color: var(--accent-red)"></i> Gastos Variáveis</span>
+            <span class="stat-value red" id="dash-variable">R$ 0,00</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-label"><i class="fa-solid fa-hand-holding-dollar" style="color: var(--accent-blue)"></i> A Receber (Devedores)</span>
+            <span class="stat-value blue" id="dash-receivables-val">R$ 0,00</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- CARD ESPECIAL: A RECEBER DE TERCEIROS (PREENCHIDO AUTOMATICAMENTE) -->
+      <section class="receivables-banner" id="banner-receivables" onclick="toggleReceivablesDetails()">
+        <div class="receivables-header">
+          <div>
+            <div style="font-size: 0.8rem; color: var(--accent-blue); font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">
+              <i class="fa-solid fa-wand-magic-sparkles"></i> Preenchimento Automático
+            </div>
+            <div style="font-size: 1.05rem; font-weight: 700; margin-top: 2px;">
+              A Receber de Terceiros neste Mês
+            </div>
+            <div style="font-size: 0.78rem; color: var(--text-muted); margin-top: 2px;" id="receivables-count-text">
+              Puxado automaticamente das parcelas cadastradas
+            </div>
+          </div>
+          <div style="text-align: right;">
+            <div style="font-size: 1.15rem; font-weight: 800; color: #60a5fa;" id="dash-receivables-total">
+              R$ 0,00
+            </div>
+            <span style="font-size: 0.75rem; color: var(--text-muted);">
+              Ver detalhes <i class="fa-solid fa-chevron-down" id="receivables-arrow"></i>
+            </span>
+          </div>
+        </div>
+
+        <!-- Lista Discriminada com nome, descrição, parcela e valor -->
+        <div class="receivables-details-list" id="receivables-details-list">
+          <div id="receivables-items-container">
+            <!-- Inserido dinamicamente via JS -->
+          </div>
+        </div>
+      </section>
+
+      <!-- Ações Rápidas -->
+      <section class="quick-actions">
+        <button class="action-btn primary" onclick="openModal('modal-expense')">
+          <span class="icon"><i class="fa-solid fa-plus"></i></span>
+          <span>Novo Gasto</span>
+        </button>
+        <button class="action-btn" onclick="openModal('modal-debtor')">
+          <span class="icon"><i class="fa-solid fa-user-plus"></i></span>
+          <span>Cobrança</span>
+        </button>
+        <button class="action-btn" onclick="switchTab('tab-charts')">
+          <span class="icon"><i class="fa-solid fa-chart-pie"></i></span>
+          <span>Gráficos</span>
+        </button>
+      </section>
+
+      <!-- Gastos Recentes -->
+      <section class="glass-card">
+        <div class="section-header">
+          <h2 class="section-title">Últimos Gastos</h2>
+          <button class="section-link" onclick="switchTab('tab-expenses')">Ver Todos</button>
+        </div>
+        <div id="dash-recent-expenses">
+          <!-- Lista de gastos recentes -->
+        </div>
+      </section>
+    </main>
+
+    <!-- ========================================================
+         TELA 2: GASTOS (EXTRATO COMPLETO & EXCEL)
+         ======================================================== -->
+    <main id="screen-expenses" class="app-screen">
+      <div class="glass-card">
+        <div class="section-header">
+          <div>
+            <div class="balance-title">Total Gasto no Mês</div>
+            <div class="balance-amount" style="font-size: 1.8rem; margin-bottom: 0;" id="expenses-screen-total">R$ 0,00</div>
+          </div>
+          <button class="btn-export" onclick="exportExpensesToExcel()">
+            <i class="fa-solid fa-file-excel"></i> Exportar Excel
+          </button>
+        </div>
+
+        <!-- Barra de Busca e Filtro de Categoria -->
+        <div style="display: flex; gap: 8px; margin-top: 16px;">
+          <input type="text" id="expenses-search-input" class="ios-input" placeholder="🔍 Buscar gasto por descrição..." oninput="filterExpensesList()" style="padding: 10px 14px; font-size: 0.9rem;">
+          <select id="expenses-category-filter" class="ios-select" onchange="filterExpensesList()" style="width: auto; padding: 10px 12px; font-size: 0.9rem;">
+            <option value="">Todas</option>
+            <option value="Alimentação">Alimentação</option>
+            <option value="Transporte">Transporte</option>
+            <option value="Moradia">Moradia</option>
+            <option value="Lazer">Lazer</option>
+            <option value="Saúde">Saúde</option>
+            <option value="Outros">Outros</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Botão Adicionar Gasto Grande -->
+      <button class="submit-btn" style="margin-bottom: 16px;" onclick="openModal('modal-expense')">
+        <i class="fa-solid fa-plus"></i> Registrar Novo Gasto
+      </button>
+
+      <!-- Lista Completa de Gastos com Item a Item e Totais -->
+      <div id="expenses-full-list">
+        <!-- Renderizado dinamicamente -->
+      </div>
+    </main>
+
+    <!-- ========================================================
+         TELA 3: QUEM ME DEVE (DEVEDORES & FECHAMENTO WHATSAPP)
+         ======================================================== -->
+    <main id="screen-debtors" class="app-screen">
+      <div class="glass-card">
+        <div class="section-header">
+          <div>
+            <div class="balance-title">Saldo Total a Receber</div>
+            <div class="balance-amount blue" style="font-size: 1.8rem; margin-bottom: 0;" id="debtors-screen-total">R$ 0,00</div>
+          </div>
+          <button class="submit-btn" style="width: auto; padding: 10px 16px; margin: 0; font-size: 0.85rem;" onclick="openModal('modal-debtor')">
+            <i class="fa-solid fa-user-plus"></i> Cadastrar Pessoa
+          </button>
+        </div>
+      </div>
+
+      <!-- Lista de Cards dos Devedores -->
+      <div id="debtors-container">
+        <!-- Renderizado via JS com cards, parcelas e botão do WhatsApp -->
+      </div>
+    </main>
+
+    <!-- ========================================================
+         TELA 4: GRÁFICOS & RELATÓRIOS (COM DOWNLOAD)
+         ======================================================== -->
+    <main id="screen-charts" class="app-screen">
+      <div class="section-header" style="margin-bottom: 16px;">
+        <h2 class="section-title">Gráficos & Análise</h2>
+        <button class="btn-export" onclick="downloadAllCharts()">
+          <i class="fa-solid fa-download"></i> Baixar Gráficos
+        </button>
+      </div>
+
+      <!-- Gráfico 1: Consumo por Categoria -->
+      <div class="glass-card" id="chart-card-1">
+        <div class="section-header">
+          <h3 style="font-size: 1rem; font-weight: 700;"><i class="fa-solid fa-chart-pie" style="color: var(--accent-indigo)"></i> Gastos por Categoria</h3>
+          <button class="icon-action-btn" onclick="downloadSingleChart('chart-categories', 'Gastos_Por_Categoria')"><i class="fa-solid fa-camera"></i> Salvar</button>
+        </div>
+        <div class="chart-container" style="max-height: 260px;">
+          <canvas id="chart-categories"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfico 2: Evolução de Gastos Mês a Mês -->
+      <div class="glass-card" id="chart-card-2">
+        <div class="section-header">
+          <h3 style="font-size: 1rem; font-weight: 700;"><i class="fa-solid fa-chart-line" style="color: var(--accent-red)"></i> Evolução Mensal do Consumo</h3>
+          <button class="icon-action-btn" onclick="downloadSingleChart('chart-expenses-monthly', 'Evolucao_Gastos')"><i class="fa-solid fa-camera"></i> Salvar</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-expenses-monthly"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfico 3: Quem me Deve - Comparativo Mensal -->
+      <div class="glass-card" id="chart-card-3">
+        <div class="section-header">
+          <h3 style="font-size: 1rem; font-weight: 700;"><i class="fa-solid fa-chart-simple" style="color: var(--accent-blue)"></i> Quem me Deve — Comparativo Mensal</h3>
+          <button class="icon-action-btn" onclick="downloadSingleChart('chart-debtors-monthly', 'Devedores_Comparativo_Mensal')"><i class="fa-solid fa-camera"></i> Salvar</button>
+        </div>
+        <div class="chart-container">
+          <canvas id="chart-debtors-monthly"></canvas>
+        </div>
+      </div>
+
+      <!-- Gráfico 4: Maiores Devedores -->
+      <div class="glass-card" id="chart-card-4">
+        <div class="section-header">
+          <h3 style="font-size: 1rem; font-weight: 700;"><i class="fa-solid fa-users" style="color: var(--accent-green)"></i> Divisão de Devedores</h3>
+          <button class="icon-action-btn" onclick="downloadSingleChart('chart-debtors-ranking', 'Ranking_Devedores')"><i class="fa-solid fa-camera"></i> Salvar</button>
+        </div>
+        <div class="chart-container" style="max-height: 260px;">
+          <canvas id="chart-debtors-ranking"></canvas>
+        </div>
+      </div>
+    </main>
+
+    <!-- ========================================================
+         TELA 5: AJUSTES, RENDA & CONTAS FIXAS
+         ======================================================== -->
+    <main id="screen-settings" class="app-screen">
+      
+      <!-- Chave Pix e Nome -->
+      <div class="glass-card">
+        <h2 class="section-title" style="margin-bottom: 12px;"><i class="fa-solid fa-id-card"></i> Dados de Cobrança</h2>
+        <div class="form-group">
+          <label class="form-label">Seu Nome</label>
+          <input type="text" id="setting-user-name" class="ios-input" value="Saulo">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Sua Chave Pix (Sai na mensagem do WhatsApp)</label>
+          <input type="text" id="setting-pix-key" class="ios-input" value="06888505456">
+        </div>
+        <button class="submit-btn" onclick="saveSettings()">Salvar Dados</button>
+      </div>
+
+      <!-- Rendas do Mês -->
+      <div class="glass-card">
+        <div class="section-header">
+          <h2 class="section-title"><i class="fa-solid fa-money-bill-wave" style="color: var(--accent-green)"></i> Rendas do Mês</h2>
+          <button class="section-link" onclick="openModal('modal-income')">+ Adicionar</button>
+        </div>
+        <div id="settings-incomes-list">
+          <!-- Renderizado via JS -->
+        </div>
+      </div>
+
+      <!-- Contas Fixas Recorrentes -->
+      <div class="glass-card">
+        <div class="section-header">
+          <h2 class="section-title"><i class="fa-solid fa-calendar-check" style="color: var(--accent-amber)"></i> Contas Fixas</h2>
+          <button class="section-link" onclick="openModal('modal-fixed-expense')">+ Adicionar</button>
+        </div>
+        <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
+          Toque no botão para marcar se já foi paga neste mês.
+        </p>
+        <div id="settings-fixed-list">
+          <!-- Renderizado via JS -->
+        </div>
+      </div>
+
+      <!-- Card Como Instalar no iPhone -->
+      <div class="glass-card" style="background: rgba(59, 130, 246, 0.08); border-color: rgba(59, 130, 246, 0.25);">
+        <h3 style="font-size: 1rem; font-weight: 700; color: #60a5fa; margin-bottom: 8px;">
+          <i class="fa-brands fa-apple"></i> Como instalar no seu iPhone
+        </h3>
+        <ol style="font-size: 0.82rem; color: var(--text-secondary); line-height: 1.6; padding-left: 18px;">
+          <li>Abra esta página no navegador <strong>Safari</strong> do iPhone.</li>
+          <li>Toque no botão de <strong>Compartilhar</strong> (ícone com quadrado e seta para cima).</li>
+          <li>Role para baixo e selecione <strong>"Adicionar à Tela de Início"</strong>.</li>
+          <li>Pronto! Ele funcionará como um aplicativo nativo em tela cheia.</li>
+        </ol>
+      </div>
+
+    </main>
+
+  </div> <!-- /app-viewport -->
+
+  <!-- ========================================================
+       BARRA DE NAVEGAÇÃO INFERIOR ESTILO iOS (BOTTOM TAB BAR)
+       ======================================================== -->
+  <nav class="ios-tab-bar">
+    <button class="tab-item active" id="tab-dashboard" onclick="switchTab('tab-dashboard')">
+      <span class="tab-icon"><i class="fa-solid fa-house"></i></span>
+      <span>Início</span>
+    </button>
+    <button class="tab-item" id="tab-expenses" onclick="switchTab('tab-expenses')">
+      <span class="tab-icon"><i class="fa-solid fa-receipt"></i></span>
+      <span>Gastos</span>
+    </button>
+    <button class="tab-item" id="tab-debtors" onclick="switchTab('tab-debtors')">
+      <span class="tab-icon"><i class="fa-solid fa-users"></i></span>
+      <span>Devedores</span>
+    </button>
+    <button class="tab-item" id="tab-charts" onclick="switchTab('tab-charts')">
+      <span class="tab-icon"><i class="fa-solid fa-chart-column"></i></span>
+      <span>Gráficos</span>
+    </button>
+    <button class="tab-item" id="tab-settings" onclick="switchTab('tab-settings')">
+      <span class="tab-icon"><i class="fa-solid fa-sliders"></i></span>
+      <span>Ajustes</span>
+    </button>
+  </nav>
+
+  <!-- ========================================================
+       MODAIS INTERATIVOS (BOTTOM SHEET)
+       ======================================================== -->
+
+  <!-- Modal: Registrar / Editar Gasto -->
+  <div class="modal-overlay" id="modal-expense" onclick="closeModalOnOverlay(event, 'modal-expense')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-expense-title">Registrar Gasto</h3>
+        <button class="close-btn" onclick="closeModal('modal-expense')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-expense" onsubmit="handleExpenseSubmit(event)">
+        <input type="hidden" id="expense-id">
+        <div class="form-group">
+          <label class="form-label">Descrição do Gasto</label>
+          <input type="text" id="expense-desc" class="ios-input" placeholder="Ex: Almoço, Farmácia, Combustível" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor (R$)</label>
+          <input type="number" id="expense-amount" class="ios-input" step="0.01" min="0.01" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <select id="expense-cat" class="ios-select">
+            <option value="Alimentação">🍔 Alimentação</option>
+            <option value="Transporte">🚗 Transporte</option>
+            <option value="Moradia">🏠 Moradia</option>
+            <option value="Lazer">🎉 Lazer</option>
+            <option value="Saúde">💊 Saúde</option>
+            <option value="Supermercado">🛒 Supermercado</option>
+            <option value="Outros">📦 Outros</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Forma de Pagamento</label>
+          <select id="expense-method" class="ios-select">
+            <option value="Pix">Pix</option>
+            <option value="Cartão de Crédito">Cartão de Crédito</option>
+            <option value="Cartão de Débito">Cartão de Débito</option>
+            <option value="Dinheiro">Dinheiro</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data</label>
+          <input type="date" id="expense-date" class="ios-input" required>
+        </div>
+        <button type="submit" class="submit-btn" id="btn-save-expense">Contabilizar Gasto</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Cadastrar Devedor -->
+  <div class="modal-overlay" id="modal-debtor" onclick="closeModalOnOverlay(event, 'modal-debtor')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title" id="modal-debtor-title">Cadastrar Pessoa</h3>
+        <button class="close-btn" onclick="closeModal('modal-debtor')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-debtor" onsubmit="handleDebtorSubmit(event)">
+        <input type="hidden" id="debtor-id">
+        <div class="form-group">
+          <label class="form-label">Nome da Pessoa</label>
+          <input type="text" id="debtor-name" class="ios-input" placeholder="Ex: Carlos Silva, Mariana" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">WhatsApp (com DDD)</label>
+          <input type="tel" id="debtor-phone" class="ios-input" placeholder="Ex: 11999998888">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Observações (opcional)</label>
+          <input type="text" id="debtor-notes" class="ios-input" placeholder="Ex: Amigo da faculdade">
+        </div>
+        <button type="submit" class="submit-btn">Salvar Pessoa</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Compra / Dívida Parcelada -->
+  <div class="modal-overlay" id="modal-debt-item" onclick="closeModalOnOverlay(event, 'modal-debt-item')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title">Lançar Compra / Dívida</h3>
+        <button class="close-btn" onclick="closeModal('modal-debt-item')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-debt-item" onsubmit="handleDebtItemSubmit(event)">
+        <input type="hidden" id="debt-item-debtor-id">
+        <div class="form-group">
+          <label class="form-label">Para quem é este lançamento?</label>
+          <input type="text" id="debt-item-debtor-name" class="ios-input" readonly style="opacity: 0.8;">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Descrição da Compra ou Dívida</label>
+          <input type="text" id="debt-item-desc" class="ios-input" placeholder="Ex: Tênis Nike, Almoço Outback, Empréstimo" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Total (R$)</label>
+          <input type="number" id="debt-item-amount" class="ios-input" step="0.01" min="0.01" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Parcelamento</label>
+          <select id="debt-item-installments" class="ios-select">
+            <option value="1">À vista (1x)</option>
+            <option value="2">2x</option>
+            <option value="3">3x</option>
+            <option value="4">4x</option>
+            <option value="5">5x</option>
+            <option value="6">6x</option>
+            <option value="10">10x</option>
+            <option value="12">12x</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Data do 1º Vencimento</label>
+          <input type="date" id="debt-item-date" class="ios-input" required>
+        </div>
+        <button type="submit" class="submit-btn">Gerar Cobrança e Parcelas</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Detalhes das Parcelas do Devedor -->
+  <div class="modal-overlay" id="modal-debtor-details" onclick="closeModalOnOverlay(event, 'modal-debtor-details')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <div>
+          <h3 class="modal-title" id="details-debtor-name">Detalhes</h3>
+          <span style="font-size: 0.8rem; color: var(--text-muted);" id="details-debtor-phone"></span>
+        </div>
+        <button class="close-btn" onclick="closeModal('modal-debtor-details')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Resumo do Devedor -->
+      <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-bottom: 16px; text-align: center;">
+        <div class="glass-card" style="padding: 10px; margin: 0;">
+          <div style="font-size: 0.7rem; color: var(--text-muted);">Total</div>
+          <div style="font-weight: 700; font-size: 0.95rem;" id="details-total-debt">R$ 0,00</div>
+        </div>
+        <div class="glass-card" style="padding: 10px; margin: 0;">
+          <div style="font-size: 0.7rem; color: var(--accent-green);">Pago</div>
+          <div style="font-weight: 700; font-size: 0.95rem; color: var(--accent-green);" id="details-total-paid">R$ 0,00</div>
+        </div>
+        <div class="glass-card" style="padding: 10px; margin: 0;">
+          <div style="font-size: 0.7rem; color: var(--accent-red);">Pendente</div>
+          <div style="font-weight: 700; font-size: 0.95rem; color: var(--accent-red);" id="details-total-pending">R$ 0,00</div>
+        </div>
+      </div>
+
+      <div style="display: flex; gap: 8px; margin-bottom: 16px;">
+        <button class="submit-btn" style="flex: 1; padding: 12px; margin: 0; font-size: 0.85rem;" onclick="openNewDebtForCurrent()">
+          <i class="fa-solid fa-plus"></i> Nova Compra
+        </button>
+        <button class="btn-export" style="background: rgba(16, 185, 129, 0.2); color: #34d399;" onclick="confirmPayAllDebtor()">
+          <i class="fa-solid fa-check-double"></i> Quitar Tudo
+        </button>
+      </div>
+
+      <!-- Lista de Itens e Parcelas -->
+      <div id="details-debts-list">
+        <!-- Renderizado dinamicamente -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Fechamento de Mês WhatsApp (Mensagem Pronta) -->
+  <div class="modal-overlay" id="modal-whatsapp-closing" onclick="closeModalOnOverlay(event, 'modal-whatsapp-closing')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-brands fa-whatsapp" style="color: #25d366;"></i> Fechamento do Mês</h3>
+        <button class="close-btn" onclick="closeModal('modal-whatsapp-closing')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
+        Esta mensagem reúne os gastos e parcelas vigentes neste mês para você enviar com 1 toque no WhatsApp:
+      </p>
+
+      <div class="glass-card" style="background: rgba(0, 0, 0, 0.4); border-color: rgba(37, 211, 102, 0.3);">
+        <pre id="whatsapp-message-preview" style="white-space: pre-wrap; font-family: inherit; font-size: 0.85rem; color: #f1f5f9; line-height: 1.5;"></pre>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 14px;">
+        <button class="action-btn" onclick="copyWhatsAppMessage()">
+          <span class="icon"><i class="fa-solid fa-copy"></i></span>
+          <span>Copiar Texto</span>
+        </button>
+        <button class="submit-btn" style="background: linear-gradient(135deg, #25d366, #128c7e); margin: 0; box-shadow: 0 4px 16px rgba(37, 211, 102, 0.4);" onclick="sendWhatsAppNow()">
+          <i class="fa-brands fa-whatsapp"></i> Abrir WhatsApp
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Conta Fixa -->
+  <div class="modal-overlay" id="modal-fixed-expense" onclick="closeModalOnOverlay(event, 'modal-fixed-expense')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title">Nova Conta Fixa</h3>
+        <button class="close-btn" onclick="closeModal('modal-fixed-expense')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-fixed-expense" onsubmit="handleFixedExpenseSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Nome da Conta</label>
+          <input type="text" id="fixed-name" class="ios-input" placeholder="Ex: Aluguel, Internet, Luz" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor Médio (R$)</label>
+          <input type="number" id="fixed-amount" class="ios-input" step="0.01" min="0.01" placeholder="0,00" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Dia do Vencimento</label>
+          <input type="number" id="fixed-day" class="ios-input" min="1" max="31" value="10" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Categoria</label>
+          <input type="text" id="fixed-category" class="ios-input" value="Moradia">
+        </div>
+        <button type="submit" class="submit-btn">Salvar Conta Fixa</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Modal: Nova Renda -->
+  <div class="modal-overlay" id="modal-income" onclick="closeModalOnOverlay(event, 'modal-income')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title">Adicionar Renda / Entrada</h3>
+        <button class="close-btn" onclick="closeModal('modal-income')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form id="form-income" onsubmit="handleIncomeSubmit(event)">
+        <div class="form-group">
+          <label class="form-label">Descrição da Renda</label>
+          <input type="text" id="income-desc" class="ios-input" placeholder="Ex: Salário, Freelance, Rendimentos" required>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Valor (R$)</label>
+          <input type="number" id="income-amount" class="ios-input" step="0.01" min="0.01" placeholder="0,00" required>
+        </div>
+        <button type="submit" class="submit-btn">Registrar Renda</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="/app.js"></script>
+</body>
+</html>

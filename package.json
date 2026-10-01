@@ -1,0 +1,30 @@
+{
+  "name": "app-financeiro-saulo",
+  "version": "1.0.0",
+  "description": "APP Financeiro Saulo - Assistente de Finanças Pessoais via WhatsApp",
+  "main": "src/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "test": "node tests/run-all.js"
+  },
+  "keywords": [
+    "whatsapp",
+    "finance",
+    "financas",
+    "baileys",
+    "bot"
+  ],
+  "author": "Saulo",
+  "license": "MIT",
+  "dependencies": {
+    "@whiskeysockets/baileys": "^7.0.0-rc14",
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "node-cron": "^4.6.0",
+    "pino": "^10.3.1",
+    "qrcode": "^1.5.4",
+    "qrcode-terminal": "^0.12.0"
+  }
+}
