@@ -102,6 +102,14 @@ function formatBRL(value) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(value || 0);
 }
 
+// Converter texto com vírgula ou ponto em número
+function parseAmount(val) {
+  if (val === null || val === undefined) return 0;
+  const str = String(val).replace(/\s/g, '').replace('R$', '').replace(',', '.');
+  const num = parseFloat(str);
+  return isNaN(num) ? 0 : num;
+}
+
 // Feedback Sonoro Estilo Apple Pay / Confirmação
 function playSuccessSound() {
   try {
@@ -399,11 +407,21 @@ function filterExpensesList() {
 async function handleExpenseSubmit(event) {
   event.preventDefault();
   const id = document.getElementById('expense-id').value;
-  const description = document.getElementById('expense-desc').value;
-  const amount = parseFloat(document.getElementById('expense-amount').value);
+  const description = (document.getElementById('expense-desc').value || '').trim();
+  const rawAmount = document.getElementById('expense-amount').value;
+  const amount = parseAmount(rawAmount);
   const category = document.getElementById('expense-cat').value;
   const paymentMethod = document.getElementById('expense-method').value;
-  const dateStr = document.getElementById('expense-date').value;
+  const dateStr = document.getElementById('expense-date').value || new Date().toISOString().split('T')[0];
+
+  if (!description) {
+    alert('Por favor, informe a descrição do gasto.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Por favor, informe um valor válido maior que zero.');
+    return;
+  }
 
   try {
     let res;
@@ -414,10 +432,6 @@ async function handleExpenseSubmit(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description, amount, category, paymentMethod, dateStr })
       });
-      const data = await res.json();
-      if (data.ok) {
-        showFeedbackToast(`Gasto atualizado: ${description} - ${formatBRL(amount)}`);
-      }
     } else {
       // Criar novo
       res = await fetch('/api/expenses', {
@@ -425,11 +439,12 @@ async function handleExpenseSubmit(event) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ description, amount, category, paymentMethod, dateStr })
       });
-      const data = await res.json();
-      if (data.ok) {
-        // Exibe a mensagem exata solicitada pelo Saulo: "Gasto contabilizado [descrição] [valor]"
-        showFeedbackToast(data.message);
-      }
+    }
+
+    const data = await res.json();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao salvar gasto.');
+      return;
     }
 
     closeModal('modal-expense');
@@ -437,10 +452,12 @@ async function handleExpenseSubmit(event) {
     document.getElementById('expense-id').value = '';
     document.getElementById('expense-date').value = new Date().toISOString().split('T')[0];
 
+    showFeedbackToast(data.message || `Gasto contabilizado: ${description} - ${formatBRL(amount)}`);
+
     await loadDashboard();
     await loadExpenses();
   } catch (err) {
-    alert('Erro ao salvar gasto.');
+    alert('Erro de conexão ao salvar gasto.');
   }
 }
 
@@ -1140,10 +1157,20 @@ async function deleteFixedItem(id) {
 
 async function handleFixedExpenseSubmit(event) {
   event.preventDefault();
-  const name = document.getElementById('fixed-name').value;
-  const amount = parseFloat(document.getElementById('fixed-amount').value);
-  const dueDay = parseInt(document.getElementById('fixed-day').value, 10);
-  const category = document.getElementById('fixed-category').value;
+  const name = (document.getElementById('fixed-name').value || '').trim();
+  const rawAmount = document.getElementById('fixed-amount').value;
+  const amount = parseAmount(rawAmount);
+  const dueDay = parseInt(document.getElementById('fixed-day').value, 10) || 10;
+  const category = (document.getElementById('fixed-category').value || '').trim() || 'Moradia';
+
+  if (!name) {
+    alert('Por favor, informe o nome da conta.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Por favor, informe um valor válido maior que zero.');
+    return;
+  }
 
   try {
     const res = await fetch('/api/fixed-expenses', {
@@ -1152,15 +1179,19 @@ async function handleFixedExpenseSubmit(event) {
       body: JSON.stringify({ name, amount, dueDay, category })
     });
     const data = await res.json();
-    if (data.id) {
-      showFeedbackToast('Conta fixa cadastrada!');
-      closeModal('modal-fixed-expense');
-      document.getElementById('form-fixed-expense').reset();
-      await loadFixedExpenses();
-      await loadDashboard();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao cadastrar conta fixa.');
+      return;
     }
+
+    closeModal('modal-fixed-expense');
+    document.getElementById('form-fixed-expense').reset();
+    showFeedbackToast('Conta fixa cadastrada com sucesso!');
+
+    await loadFixedExpenses();
+    await loadDashboard();
   } catch (err) {
-    alert('Erro ao cadastrar conta fixa.');
+    alert('Erro de conexão ao salvar conta fixa.');
   }
 }
 
@@ -1200,8 +1231,18 @@ async function loadIncomes() {
 
 async function handleIncomeSubmit(event) {
   event.preventDefault();
-  const description = document.getElementById('income-desc').value;
-  const amount = parseFloat(document.getElementById('income-amount').value);
+  const description = (document.getElementById('income-desc').value || '').trim();
+  const rawAmount = document.getElementById('income-amount').value;
+  const amount = parseAmount(rawAmount);
+
+  if (!description) {
+    alert('Por favor, informe a descrição da renda.');
+    return;
+  }
+  if (!amount || amount <= 0) {
+    alert('Por favor, informe um valor válido maior que zero.');
+    return;
+  }
 
   try {
     const res = await fetch('/api/incomes', {
@@ -1215,15 +1256,19 @@ async function handleIncomeSubmit(event) {
       })
     });
     const data = await res.json();
-    if (data.id) {
-      showFeedbackToast('Renda registrada!');
-      closeModal('modal-income');
-      document.getElementById('form-income').reset();
-      await loadIncomes();
-      await loadDashboard();
+    if (!res.ok) {
+      alert(data.error || 'Erro ao cadastrar renda.');
+      return;
     }
+
+    closeModal('modal-income');
+    document.getElementById('form-income').reset();
+    showFeedbackToast('Renda registrada com sucesso!');
+
+    await loadIncomes();
+    await loadDashboard();
   } catch (err) {
-    alert('Erro ao cadastrar renda.');
+    alert('Erro de conexão ao cadastrar renda.');
   }
 }
 
@@ -1243,7 +1288,17 @@ async function deleteIncomeItem(id) {
 // ========================================================
 function openModal(modalId) {
   const modal = document.getElementById(modalId);
-  if (modal) modal.classList.add('active');
+  if (modal) {
+    modal.classList.add('active');
+    const todayStr = new Date().toISOString().split('T')[0];
+    if (modalId === 'modal-expense') {
+      const el = document.getElementById('expense-date');
+      if (el && !el.value) el.value = todayStr;
+    } else if (modalId === 'modal-debt-item') {
+      const el = document.getElementById('debt-item-date');
+      if (el && !el.value) el.value = todayStr;
+    }
+  }
 }
 
 function closeModal(modalId) {

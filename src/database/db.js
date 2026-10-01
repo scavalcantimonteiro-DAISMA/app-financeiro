@@ -134,15 +134,39 @@ function initTables(database) {
       database.exec("ALTER TABLE expenses ADD COLUMN payment_method TEXT DEFAULT 'Pix'");
     }
 
-    const fixedCols = database.prepare("PRAGMA table_info(fixed_expenses)").all().map(c => c.name);
-    if (!fixedCols.includes('due_day')) {
-      database.exec("ALTER TABLE fixed_expenses ADD COLUMN due_day INTEGER DEFAULT 10");
-    }
-    if (!fixedCols.includes('category')) {
-      database.exec("ALTER TABLE fixed_expenses ADD COLUMN category TEXT DEFAULT 'Moradia'");
-    }
-    if (!fixedCols.includes('is_active')) {
-      database.exec("ALTER TABLE fixed_expenses ADD COLUMN is_active INTEGER DEFAULT 1");
+    const fixedTableInfo = database.prepare("PRAGMA table_info(fixed_expenses)").all();
+    const fixedCols = fixedTableInfo.map(c => c.name);
+    const yearCol = fixedTableInfo.find(c => c.name === 'year');
+    
+    // Se a tabela antiga tinha 'year' como NOT NULL, recriar limpa
+    if (yearCol && yearCol.notnull === 1) {
+      database.exec(`
+        PRAGMA foreign_keys=OFF;
+        CREATE TABLE IF NOT EXISTS fixed_expenses_new (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL,
+          amount REAL NOT NULL,
+          due_day INTEGER DEFAULT 10,
+          category TEXT DEFAULT 'Moradia',
+          is_active INTEGER DEFAULT 1,
+          created_at TEXT DEFAULT (datetime('now', 'localtime'))
+        );
+        INSERT OR IGNORE INTO fixed_expenses_new (id, name, amount, due_day, category, is_active, created_at)
+        SELECT id, name, amount, 10, 'Moradia', 1, created_at FROM fixed_expenses;
+        DROP TABLE fixed_expenses;
+        ALTER TABLE fixed_expenses_new RENAME TO fixed_expenses;
+        PRAGMA foreign_keys=ON;
+      `);
+    } else {
+      if (!fixedCols.includes('due_day')) {
+        database.exec("ALTER TABLE fixed_expenses ADD COLUMN due_day INTEGER DEFAULT 10");
+      }
+      if (!fixedCols.includes('category')) {
+        database.exec("ALTER TABLE fixed_expenses ADD COLUMN category TEXT DEFAULT 'Moradia'");
+      }
+      if (!fixedCols.includes('is_active')) {
+        database.exec("ALTER TABLE fixed_expenses ADD COLUMN is_active INTEGER DEFAULT 1");
+      }
     }
   } catch (err) {
     console.error('Aviso ao aplicar migrações:', err.message);
