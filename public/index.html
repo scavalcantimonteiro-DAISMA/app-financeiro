@@ -12,7 +12,7 @@
   <link rel="icon" type="image/svg+xml" href="/icon.svg">
   <link rel="apple-touch-icon" href="/icon.svg">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/style.css">
+  <link rel="stylesheet" href="/style.css?v=1.0.5">
   
   <!-- Fontes & Ícones -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -296,7 +296,7 @@
       <div class="glass-card">
         <div class="section-header">
           <h2 class="section-title"><i class="fa-solid fa-calendar-check" style="color: var(--accent-amber)"></i> Contas Fixas</h2>
-          <button class="section-link" onclick="openModal('modal-fixed-expense')">+ Adicionar</button>
+          <button class="section-link" onclick="openNewFixedExpenseModal()">+ Adicionar</button>
         </div>
         <p style="font-size: 0.8rem; color: var(--text-muted); margin-bottom: 12px;">
           Toque no botão para marcar se já foi paga neste mês.
@@ -568,10 +568,11 @@
     <div class="ios-modal">
       <div class="modal-drag-indicator"></div>
       <div class="modal-header">
-        <h3 class="modal-title">Nova Conta Fixa</h3>
+        <h3 class="modal-title" id="modal-fixed-title">Nova Conta Fixa</h3>
         <button class="close-btn" onclick="closeModal('modal-fixed-expense')"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <form id="form-fixed-expense" onsubmit="handleFixedExpenseSubmit(event)">
+        <input type="hidden" id="fixed-id">
         <div class="form-group">
           <label class="form-label">Nome da Conta</label>
           <input type="text" id="fixed-name" class="ios-input" placeholder="Ex: Aluguel, Internet, Luz" required>
@@ -588,7 +589,7 @@
           <label class="form-label">Categoria</label>
           <input type="text" id="fixed-category" class="ios-input" value="Moradia">
         </div>
-        <button type="submit" class="submit-btn">Salvar Conta Fixa</button>
+        <button type="submit" class="submit-btn" id="btn-save-fixed">Salvar Conta Fixa</button>
       </form>
     </div>
   </div>
@@ -615,6 +616,6 @@
     </div>
   </div>
 
-  <script src="/app.js"></script>
+  <script src="/app.js?v=1.0.5"></script>
 </body>
 </html>

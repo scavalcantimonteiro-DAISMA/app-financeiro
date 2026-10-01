@@ -3,6 +3,7 @@
    ======================================================== */
 
 :root {
+  color-scheme: dark;
   --bg-primary: #090d16;
   --bg-secondary: #111827;
   --bg-card: rgba(22, 30, 49, 0.75);
@@ -648,12 +649,17 @@ body {
   font-size: 1rem;
   outline: none;
   transition: border-color 0.2s, background 0.2s;
+  color-scheme: dark !important;
 }
 
+select.ios-select, 
+select.ios-select option, 
+.ios-select, 
 .ios-select option {
-  background-color: #1a2234 !important;
-  color: #f8fafc !important;
-  padding: 12px;
+  color-scheme: dark !important;
+  background-color: #131a29 !important;
+  color: #ffffff !important;
+  padding: 14px;
 }
 
 .ios-input:focus, .ios-select:focus {

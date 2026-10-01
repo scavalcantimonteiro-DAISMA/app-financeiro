@@ -611,6 +611,15 @@ function renderDebtorsCards(debtors) {
             <i class="fa-solid fa-list-check"></i> Ver Parcelas
           </button>
         </div>
+
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px;">
+          <button class="btn-export" style="justify-content: center; padding: 8px; font-size: 0.75rem; background: rgba(255, 255, 255, 0.06); color: #cbd5e1;" onclick="editDebtorClick(${d.id})">
+            <i class="fa-solid fa-pen"></i> Editar Dados
+          </button>
+          <button class="btn-export" style="justify-content: center; padding: 8px; font-size: 0.75rem; background: rgba(239, 68, 68, 0.15); color: #f87171; border-color: rgba(239, 68, 68, 0.3);" onclick="deleteDebtorClick(${d.id}, '${d.name.replace(/'/g, "\\'")}')">
+            <i class="fa-solid fa-trash"></i> Excluir Pessoa
+          </button>
+        </div>
       </div>
     `;
   }).join('');
@@ -1224,6 +1233,7 @@ async function loadFixedExpenses() {
             <button class="btn-export" style="padding: 4px 8px; font-size: 0.72rem; ${item.is_paid ? 'background: rgba(16, 185, 129, 0.2); color: #34d399;' : 'background: rgba(245, 158, 11, 0.2); color: #f59e0b;'}" onclick="toggleFixedPayment(${item.id}, ${!item.is_paid})">
               ${item.is_paid ? '✅ Paga' : '⏳ A Pagar'}
             </button>
+            <button class="icon-action-btn" onclick="editFixedExpense(${item.id})" title="Editar Conta Fixa"><i class="fa-solid fa-pen"></i></button>
             <button class="icon-action-btn delete" onclick="deleteFixedItem(${item.id})" title="Excluir"><i class="fa-solid fa-trash"></i></button>
           </div>
         </div>
@@ -1232,6 +1242,32 @@ async function loadFixedExpenses() {
   } catch (err) {
     console.error('Erro ao carregar contas fixas:', err);
   }
+}
+
+function openNewFixedExpenseModal() {
+  document.getElementById('form-fixed-expense').reset();
+  document.getElementById('fixed-id').value = '';
+  document.getElementById('modal-fixed-title').textContent = 'Nova Conta Fixa';
+  document.getElementById('btn-save-fixed').textContent = 'Salvar Conta Fixa';
+  openModal('modal-fixed-expense');
+}
+
+function editFixedExpense(id) {
+  fetch(`/api/fixed-expenses?year=${state.year}&month=${state.month}`)
+    .then(r => r.json())
+    .then(list => {
+      const item = (list || []).find(f => f.id === id);
+      if (!item) return;
+      document.getElementById('fixed-id').value = item.id;
+      document.getElementById('fixed-name').value = item.name;
+      document.getElementById('fixed-amount').value = item.amount;
+      document.getElementById('fixed-day').value = item.due_day || 10;
+      document.getElementById('fixed-category').value = item.category || 'Moradia';
+      document.getElementById('modal-fixed-title').textContent = 'Editar Conta Fixa';
+      document.getElementById('btn-save-fixed').textContent = 'Salvar Alterações';
+      openModal('modal-fixed-expense');
+    })
+    .catch(err => alert('Erro ao carregar dados da conta fixa.'));
 }
 
 async function toggleFixedPayment(id, isPaid) {
@@ -1261,6 +1297,7 @@ async function deleteFixedItem(id) {
 
 async function handleFixedExpenseSubmit(event) {
   event.preventDefault();
+  const id = document.getElementById('fixed-id').value;
   const name = (document.getElementById('fixed-name').value || '').trim();
   const rawAmount = document.getElementById('fixed-amount').value;
   const amount = parseAmount(rawAmount);
@@ -1277,20 +1314,36 @@ async function handleFixedExpenseSubmit(event) {
   }
 
   try {
-    const res = await fetch('/api/fixed-expenses', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, amount, dueDay, category })
-    });
+    let res;
+    if (id) {
+      // Atualizar conta fixa
+      res = await fetch(`/api/fixed-expenses/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, amount, dueDay, category })
+      });
+    } else {
+      // Criar nova conta fixa
+      res = await fetch('/api/fixed-expenses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, amount, dueDay, category })
+      });
+    }
+
     const data = await res.json();
     if (!res.ok) {
-      alert(data.error || 'Erro ao cadastrar conta fixa.');
+      alert(data.error || 'Erro ao salvar conta fixa.');
       return;
     }
 
     closeModal('modal-fixed-expense');
     document.getElementById('form-fixed-expense').reset();
-    showFeedbackToast('Conta fixa cadastrada com sucesso!');
+    document.getElementById('fixed-id').value = '';
+    document.getElementById('modal-fixed-title').textContent = 'Nova Conta Fixa';
+    document.getElementById('btn-save-fixed').textContent = 'Salvar Conta Fixa';
+
+    showFeedbackToast(id ? 'Conta fixa atualizada com sucesso!' : 'Conta fixa cadastrada com sucesso!');
 
     await loadFixedExpenses();
     await loadDashboard();
