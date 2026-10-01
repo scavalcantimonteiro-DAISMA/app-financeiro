@@ -13,7 +13,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png">
   <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png">
   <link rel="manifest" href="/manifest.json">
-  <link rel="stylesheet" href="/style.css?v=1.0.7">
+  <link rel="stylesheet" href="/style.css?v=1.0.8">
   
   <!-- Fontes & Ícones -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
@@ -122,8 +122,8 @@
           <span class="icon"><i class="fa-solid fa-plus"></i></span>
           <span>Novo Gasto</span>
         </button>
-        <button class="action-btn" onclick="openNewDebtorModal()">
-          <span class="icon"><i class="fa-solid fa-user-plus"></i></span>
+        <button class="action-btn" onclick="openQuickCollectionModal()">
+          <span class="icon" style="color: #25d366;"><i class="fa-brands fa-whatsapp"></i></span>
           <span>Cobrança</span>
         </button>
         <button class="action-btn" onclick="switchTab('tab-charts')">
@@ -438,10 +438,11 @@
         <button class="close-btn" onclick="closeModal('modal-debt-item')"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <form id="form-debt-item" onsubmit="handleDebtItemSubmit(event)">
-        <input type="hidden" id="debt-item-debtor-id">
         <div class="form-group">
-          <label class="form-label">Para quem é este lançamento?</label>
-          <input type="text" id="debt-item-debtor-name" class="ios-input" readonly style="opacity: 0.8;">
+          <label class="form-label">Para quem é este lançamento? (Devedor)</label>
+          <select id="debt-item-debtor-id" class="ios-select" required>
+            <!-- Populado dinamicamente -->
+          </select>
         </div>
         <div class="form-group">
           <label class="form-label">Descrição da Compra ou Dívida</label>
@@ -566,6 +567,33 @@
     </div>
   </div>
 
+  <!-- Modal: Cobrança Rápida via WhatsApp (Painel de Devedores) -->
+  <div class="modal-overlay" id="modal-quick-collection" onclick="closeModalOnOverlay(event, 'modal-quick-collection')">
+    <div class="ios-modal">
+      <div class="modal-drag-indicator"></div>
+      <div class="modal-header">
+        <h3 class="modal-title"><i class="fa-brands fa-whatsapp" style="color: #25d366;"></i> Cobrança via WhatsApp</h3>
+        <button class="close-btn" onclick="closeModal('modal-quick-collection')"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <p style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 14px;">
+        Toque em <strong>Cobrar</strong> para gerar a mensagem com os valores e sua chave Pix e abrir direto no WhatsApp:
+      </p>
+
+      <div id="quick-collection-list" style="max-height: 50vh; overflow-y: auto;">
+        <!-- Lista de devedores com botão de cobrança WhatsApp -->
+      </div>
+
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px;">
+        <button class="btn-export" style="justify-content: center; padding: 10px;" onclick="closeModal('modal-quick-collection'); switchTab('tab-debtors');">
+          <i class="fa-solid fa-users"></i> Ver Todos
+        </button>
+        <button class="btn-export" style="justify-content: center; padding: 10px; background: rgba(59, 130, 246, 0.2); color: #60a5fa; border-color: rgba(59, 130, 246, 0.3);" onclick="closeModal('modal-quick-collection'); openNewDebtorModal();">
+          <i class="fa-solid fa-user-plus"></i> + Nova Pessoa
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Modal: Nova Conta Fixa -->
   <div class="modal-overlay" id="modal-fixed-expense" onclick="closeModalOnOverlay(event, 'modal-fixed-expense')">
     <div class="ios-modal">
@@ -619,6 +647,6 @@
     </div>
   </div>
 
-  <script src="/app.js?v=1.0.7"></script>
+  <script src="/app.js?v=1.0.8"></script>
 </body>
 </html>

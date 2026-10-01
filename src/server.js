@@ -258,17 +258,31 @@ app.delete('/api/debtors/:id', (req, res) => {
 app.post('/api/debtors/:id/debts', (req, res) => {
   try {
     const debtorId = parseInt(req.params.id, 10);
+    if (!debtorId || isNaN(debtorId)) {
+      return res.status(400).json({ error: 'ID da pessoa inválido ou não informado.' });
+    }
+
+    const debtor = repo.getDebtorById(debtorId);
+    if (!debtor) {
+      return res.status(404).json({ error: `Pessoa com código ${debtorId} não foi encontrada no sistema.` });
+    }
+
     const { description, totalAmount, installmentsCount, startDate } = req.body;
 
-    if (!description || !totalAmount || isNaN(totalAmount) || totalAmount <= 0) {
-      return res.status(400).json({ error: 'Descrição e valor total válidos são obrigatórios.' });
+    if (!description || !description.trim()) {
+      return res.status(400).json({ error: 'A descrição da dívida é obrigatória.' });
+    }
+
+    const amountNum = parseFloat(totalAmount);
+    if (isNaN(amountNum) || amountNum <= 0) {
+      return res.status(400).json({ error: 'O valor total deve ser um número maior que zero.' });
     }
 
     const todayStr = new Date().toISOString().split('T')[0];
     const item = repo.addDebtItem(
       debtorId,
       description.trim(),
-      parseFloat(totalAmount),
+      amountNum,
       parseInt(installmentsCount, 10) || 1,
       startDate || todayStr
     );

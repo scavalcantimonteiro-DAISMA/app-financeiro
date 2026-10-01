@@ -199,8 +199,18 @@ function deleteDebtor(id) {
   db.prepare('DELETE FROM debtors WHERE id = ?').run(id);
 }
 
+function getDebtorById(id) {
+  const db = getDatabase();
+  return db.prepare('SELECT * FROM debtors WHERE id = ?').get(id);
+}
+
 function addDebtItem(debtorId, description, totalAmount, installmentsCount, startDateStr) {
   const db = getDatabase();
+  const debtor = db.prepare('SELECT id FROM debtors WHERE id = ?').get(debtorId);
+  if (!debtor) {
+    throw new Error(`Pessoa com ID ${debtorId} não existe ou foi excluída.`);
+  }
+
   const count = parseInt(installmentsCount, 10) || 1;
   const itemResult = db.prepare(`
     INSERT INTO debt_items (debtor_id, description, total_amount, installments_count, start_date)
@@ -386,6 +396,7 @@ module.exports = {
   addDebtor,
   updateDebtor,
   deleteDebtor,
+  getDebtorById,
   addDebtItem,
   deleteDebtItem,
   setInstallmentStatus,

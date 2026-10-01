@@ -857,16 +857,40 @@ async function confirmPayAllDebtor() {
   }
 }
 
+function populateDebtorSelect(selectedId) {
+  const select = document.getElementById('debt-item-debtor-id');
+  if (!select) return;
+
+  const debtors = state.debtors || [];
+  if (debtors.length === 0) {
+    select.innerHTML = '<option value="">Nenhuma pessoa cadastrada</option>';
+    return;
+  }
+
+  select.innerHTML = debtors.map(d => {
+    const isSelected = selectedId && Number(selectedId) === Number(d.id) ? 'selected' : '';
+    return `<option value="${d.id}" ${isSelected}>${d.name}${d.phone ? ' (' + formatPhone(d.phone) + ')' : ''}</option>`;
+  }).join('');
+}
+
 function openNewDebtForDebtor(debtorId) {
-  const debtor = state.debtors.find(d => d.id === debtorId);
-  if (!debtor) return;
-  state.selectedDebtor = debtor;
+  populateDebtorSelect(debtorId);
+
+  const select = document.getElementById('debt-item-debtor-id');
+  if (select && debtorId) {
+    select.value = String(debtorId);
+  }
+
+  const debtor = state.debtors.find(d => d.id === Number(debtorId));
+  if (debtor) state.selectedDebtor = debtor;
 
   const form = document.getElementById('form-debt-item');
   if (form) form.reset();
 
-  document.getElementById('debt-item-debtor-id').value = debtor.id;
-  document.getElementById('debt-item-debtor-name').value = debtor.name;
+  if (select && debtorId) {
+    select.value = String(debtorId);
+  }
+
   document.getElementById('debt-item-desc').value = '';
   document.getElementById('debt-item-amount').value = '';
   document.getElementById('debt-item-installments').value = '1';
@@ -877,19 +901,24 @@ function openNewDebtForDebtor(debtorId) {
 }
 
 function openNewDebtForCurrent() {
-  if (!state.selectedDebtor) return;
-  openNewDebtForDebtor(state.selectedDebtor.id);
+  const debtorId = state.selectedDebtor ? state.selectedDebtor.id : (state.debtors[0] ? state.debtors[0].id : null);
+  openNewDebtForDebtor(debtorId);
 }
 
 async function handleDebtItemSubmit(event) {
   event.preventDefault();
-  const debtorId = document.getElementById('debt-item-debtor-id').value;
+  const select = document.getElementById('debt-item-debtor-id');
+  const debtorId = select ? parseInt(select.value, 10) : 0;
   const description = (document.getElementById('debt-item-desc').value || '').trim();
   const rawAmount = document.getElementById('debt-item-amount').value;
   const totalAmount = parseAmount(rawAmount);
   const installmentsCount = parseInt(document.getElementById('debt-item-installments').value, 10) || 1;
   const startDate = document.getElementById('debt-item-date').value || new Date().toISOString().split('T')[0];
 
+  if (!debtorId || isNaN(debtorId)) {
+    alert('Por favor, selecione para quem é este lançamento.');
+    return;
+  }
   if (!description) {
     alert('Por favor, informe a descrição da compra/dívida.');
     return;
@@ -1494,6 +1523,57 @@ async function deleteIncomeItem(id) {
 }
 
 // ========================================================
+// COBRANÇA RÁPIDA VIA WHATSAPP (MODAL DE DEVEDORES)
+// ========================================================
+function openQuickCollectionModal() {
+  const container = document.getElementById('quick-collection-list');
+  if (!container) return;
+
+  const debtors = state.debtors || [];
+  const debtorsWithPending = debtors.filter(d => (d.total_pending || 0) > 0);
+
+  if (debtors.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px 10px; color: var(--text-muted);">
+        <i class="fa-solid fa-user-xmark" style="font-size: 2rem; margin-bottom: 10px; display: block; color: var(--text-muted);"></i>
+        <p style="margin-bottom: 12px; font-weight: 500;">Nenhuma pessoa cadastrada ainda.</p>
+        <button class="submit-btn" style="width: auto; padding: 10px 18px; font-size: 0.85rem;" onclick="closeModal('modal-quick-collection'); openNewDebtorModal();">
+          <i class="fa-solid fa-user-plus"></i> Cadastrar Primeira Pessoa
+        </button>
+      </div>
+    `;
+  } else if (debtorsWithPending.length === 0) {
+    container.innerHTML = `
+      <div style="text-align: center; padding: 30px 10px;">
+        <i class="fa-solid fa-circle-check" style="font-size: 2.4rem; color: var(--accent-green); margin-bottom: 10px; display: block;"></i>
+        <p style="color: #f1f5f9; font-weight: 700; font-size: 1.05rem; margin-bottom: 4px;">Tudo quitado!</p>
+        <p style="font-size: 0.82rem; color: var(--text-muted);">Nenhum devedor com parcelas em aberto no momento.</p>
+      </div>
+    `;
+  } else {
+    container.innerHTML = debtorsWithPending.map(d => {
+      const initial = (d.name || '?')[0].toUpperCase();
+      return `
+        <div class="glass-card" style="margin-bottom: 10px; padding: 12px 14px; display: flex; justify-content: space-between; align-items: center; background: rgba(255, 255, 255, 0.04);">
+          <div style="display: flex; align-items: center; gap: 10px;">
+            <div class="debtor-avatar" style="width: 40px; height: 40px; font-size: 1rem;">${initial}</div>
+            <div>
+              <strong style="color: #f8fafc; font-size: 0.95rem; display: block;">${d.name}</strong>
+              <span style="font-size: 0.78rem; color: #f87171; font-weight: 700;">A receber: ${formatBRL(d.total_pending)}</span>
+            </div>
+          </div>
+          <button class="submit-btn" style="width: auto; margin: 0; padding: 8px 14px; font-size: 0.82rem; background: linear-gradient(135deg, #25d366, #128c7e); font-weight: 700; box-shadow: 0 4px 10px rgba(37, 211, 102, 0.35);" onclick="closeModal('modal-quick-collection'); openWhatsAppClosingModal(${d.id});">
+            <i class="fa-brands fa-whatsapp"></i> Cobrar
+          </button>
+        </div>
+      `;
+    }).join('');
+  }
+
+  openModal('modal-quick-collection');
+}
+
+// ========================================================
 // FUNÇÕES UTILITÁRIAS & MODAIS
 // ========================================================
 function openModal(modalId) {
@@ -1507,6 +1587,10 @@ function openModal(modalId) {
     } else if (modalId === 'modal-debt-item') {
       const el = document.getElementById('debt-item-date');
       if (el && !el.value) el.value = todayStr;
+      const select = document.getElementById('debt-item-debtor-id');
+      if (select && (!select.children || select.children.length === 0)) {
+        populateDebtorSelect(state.selectedDebtor ? state.selectedDebtor.id : null);
+      }
     }
   }
 }
@@ -1561,6 +1645,7 @@ function formatPhone(phone) {
 window.openNewDebtorModal = openNewDebtorModal;
 window.openNewDebtForDebtor = openNewDebtForDebtor;
 window.openNewDebtForCurrent = openNewDebtForCurrent;
+window.openQuickCollectionModal = openQuickCollectionModal;
 window.openDebtorDetails = openDebtorDetails;
 window.editDebtorClick = editDebtorClick;
 window.deleteDebtorClick = deleteDebtorClick;
@@ -1569,4 +1654,5 @@ window.confirmPayAllDebtor = confirmPayAllDebtor;
 window.openWhatsAppClosingModal = openWhatsAppClosingModal;
 window.closeModal = closeModal;
 window.openModal = openModal;
+
 
