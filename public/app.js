@@ -319,20 +319,25 @@ function renderRecentExpenses(items) {
     'Outros': '📦'
   };
 
-  container.innerHTML = items.slice(0, 5).map(item => `
-    <div class="item-card">
-      <div class="item-left">
-        <div class="item-icon">${iconsMap[item.category] || '💰'}</div>
-        <div class="item-info">
-          <div class="item-title">${item.description}</div>
-          <div class="item-subtitle">${formatDateBR(item.date_str)} • ${item.category} • ${item.payment_method || 'Pix'}</div>
+  container.innerHTML = items.slice(0, 5).map(item => {
+    const installmentBadge = item.total_installments > 1 
+      ? `<span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.7rem; padding: 2px 6px; border-radius: 6px; font-weight: 600; margin-left: 6px;">💳 ${item.installment_number}/${item.total_installments}</span>` 
+      : '';
+    return `
+      <div class="item-card">
+        <div class="item-left">
+          <div class="item-icon">${iconsMap[item.category] || '💰'}</div>
+          <div class="item-info">
+            <div class="item-title">${item.description} ${installmentBadge}</div>
+            <div class="item-subtitle">${formatDateBR(item.date_str)} • ${item.category} • ${item.payment_method || 'Pix'}</div>
+          </div>
+        </div>
+        <div class="item-right">
+          <div class="item-amount" style="color: #f87171;">-${formatBRL(item.amount)}</div>
         </div>
       </div>
-      <div class="item-right">
-        <div class="item-amount" style="color: #f87171;">-${formatBRL(item.amount)}</div>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 // ========================================================
@@ -370,24 +375,29 @@ function renderFullExpensesList(items) {
     'Outros': '📦'
   };
 
-  container.innerHTML = items.map(item => `
-    <div class="item-card">
-      <div class="item-left">
-        <div class="item-icon">${iconsMap[item.category] || '💰'}</div>
-        <div class="item-info">
-          <div class="item-title">${item.description}</div>
-          <div class="item-subtitle">${formatDateBR(item.date_str)} • ${item.category} • ${item.payment_method || 'Pix'}</div>
+  container.innerHTML = items.map(item => {
+    const installmentBadge = item.total_installments > 1 
+      ? `<span style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 0.72rem; padding: 2px 6px; border-radius: 6px; font-weight: 600; margin-left: 6px;">💳 ${item.installment_number}/${item.total_installments}</span>` 
+      : '';
+    return `
+      <div class="item-card">
+        <div class="item-left">
+          <div class="item-icon">${iconsMap[item.category] || '💰'}</div>
+          <div class="item-info">
+            <div class="item-title">${item.description} ${installmentBadge}</div>
+            <div class="item-subtitle">${formatDateBR(item.date_str)} • ${item.category} • ${item.payment_method || 'Pix'}</div>
+          </div>
+        </div>
+        <div class="item-right">
+          <div class="item-amount" style="color: #f87171;">-${formatBRL(item.amount)}</div>
+          <div class="item-actions-row">
+            <button class="icon-action-btn" onclick="editExpense(${item.id})" title="Editar"><i class="fa-solid fa-pen"></i></button>
+            <button class="icon-action-btn delete" onclick="deleteExpenseItem(${item.id})" title="Excluir"><i class="fa-solid fa-trash"></i></button>
+          </div>
         </div>
       </div>
-      <div class="item-right">
-        <div class="item-amount" style="color: #f87171;">-${formatBRL(item.amount)}</div>
-        <div class="item-actions-row">
-          <button class="icon-action-btn" onclick="editExpense(${item.id})" title="Editar"><i class="fa-solid fa-pen"></i></button>
-          <button class="icon-action-btn delete" onclick="deleteExpenseItem(${item.id})" title="Excluir"><i class="fa-solid fa-trash"></i></button>
-        </div>
-      </div>
-    </div>
-  `).join('');
+    `;
+  }).join('');
 }
 
 function filterExpensesList() {
@@ -403,6 +413,69 @@ function filterExpensesList() {
   renderFullExpensesList(filtered);
 }
 
+// Funções de Suporte para Compras Parceladas no Cartão de Crédito
+function handlePaymentMethodChange() {
+  const method = document.getElementById('expense-method')?.value;
+  const section = document.getElementById('expense-installment-section');
+  const isEditing = Boolean(document.getElementById('expense-id')?.value);
+
+  if (!section) return;
+
+  if (method === 'Cartão de Crédito' && !isEditing) {
+    section.style.display = 'block';
+  } else {
+    section.style.display = 'none';
+    const check = document.getElementById('expense-is-installment');
+    if (check) check.checked = false;
+    const box = document.getElementById('expense-installments-box');
+    if (box) box.style.display = 'none';
+    const preview = document.getElementById('expense-installment-preview');
+    if (preview) preview.textContent = '';
+  }
+}
+
+function toggleInstallmentOptions() {
+  const isChecked = document.getElementById('expense-is-installment')?.checked;
+  const box = document.getElementById('expense-installments-box');
+  if (box) {
+    box.style.display = isChecked ? 'block' : 'none';
+    if (isChecked) updateInstallmentPreview();
+  }
+}
+
+function updateInstallmentPreview() {
+  const preview = document.getElementById('expense-installment-preview');
+  if (!preview) return;
+
+  const isChecked = document.getElementById('expense-is-installment')?.checked;
+  if (!isChecked) {
+    preview.textContent = '';
+    return;
+  }
+
+  const rawAmount = document.getElementById('expense-amount')?.value;
+  const total = parseAmount(rawAmount);
+  const count = parseInt(document.getElementById('expense-installments-count')?.value, 10) || 1;
+
+  if (total > 0 && count > 1) {
+    const installmentValue = Math.round((total / count) * 100) / 100;
+    preview.innerHTML = `<i class="fa-solid fa-calculator"></i> ${count}x de <strong>${formatBRL(installmentValue)}</strong> / mês`;
+  } else {
+    preview.textContent = '';
+  }
+}
+
+function resetInstallmentUI() {
+  const section = document.getElementById('expense-installment-section');
+  if (section) section.style.display = 'none';
+  const check = document.getElementById('expense-is-installment');
+  if (check) check.checked = false;
+  const box = document.getElementById('expense-installments-box');
+  if (box) box.style.display = 'none';
+  const preview = document.getElementById('expense-installment-preview');
+  if (preview) preview.textContent = '';
+}
+
 // Salvar / Editar Gasto
 async function handleExpenseSubmit(event) {
   event.preventDefault();
@@ -413,6 +486,9 @@ async function handleExpenseSubmit(event) {
   const category = document.getElementById('expense-cat').value;
   const paymentMethod = document.getElementById('expense-method').value;
   const dateStr = document.getElementById('expense-date').value || new Date().toISOString().split('T')[0];
+
+  const isInstallment = !id && paymentMethod === 'Cartão de Crédito' && document.getElementById('expense-is-installment')?.checked;
+  const installmentsCount = isInstallment ? parseInt(document.getElementById('expense-installments-count').value, 10) || 1 : 1;
 
   if (!description) {
     alert('Por favor, informe a descrição do gasto.');
@@ -433,11 +509,11 @@ async function handleExpenseSubmit(event) {
         body: JSON.stringify({ description, amount, category, paymentMethod, dateStr })
       });
     } else {
-      // Criar novo
+      // Criar novo (com suporte a parcelas no cartão)
       res = await fetch('/api/expenses', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ description, amount, category, paymentMethod, dateStr })
+        body: JSON.stringify({ description, amount, category, paymentMethod, dateStr, installmentsCount })
       });
     }
 
@@ -451,6 +527,7 @@ async function handleExpenseSubmit(event) {
     document.getElementById('form-expense').reset();
     document.getElementById('expense-id').value = '';
     document.getElementById('expense-date').value = new Date().toISOString().split('T')[0];
+    resetInstallmentUI();
 
     showFeedbackToast(data.message || `Gasto contabilizado: ${description} - ${formatBRL(amount)}`);
 
@@ -474,6 +551,7 @@ function editExpense(id) {
   document.getElementById('modal-expense-title').textContent = 'Editar Gasto';
   document.getElementById('btn-save-expense').textContent = 'Salvar Alterações';
 
+  resetInstallmentUI();
   openModal('modal-expense');
 }
 
@@ -1584,6 +1662,7 @@ function openModal(modalId) {
     if (modalId === 'modal-expense') {
       const el = document.getElementById('expense-date');
       if (el && !el.value) el.value = todayStr;
+      handlePaymentMethodChange();
     } else if (modalId === 'modal-debt-item') {
       const el = document.getElementById('debt-item-date');
       if (el && !el.value) el.value = todayStr;
@@ -1612,6 +1691,7 @@ function closeModal(modalId) {
     if (idInput) idInput.value = '';
     const title = document.getElementById('modal-expense-title');
     if (title) title.textContent = 'Registrar Gasto';
+    resetInstallmentUI();
   }
 }
 
@@ -1652,6 +1732,10 @@ window.deleteDebtorClick = deleteDebtorClick;
 window.deleteCurrentDebtorModal = deleteCurrentDebtorModal;
 window.confirmPayAllDebtor = confirmPayAllDebtor;
 window.openWhatsAppClosingModal = openWhatsAppClosingModal;
+window.handlePaymentMethodChange = handlePaymentMethodChange;
+window.toggleInstallmentOptions = toggleInstallmentOptions;
+window.updateInstallmentPreview = updateInstallmentPreview;
+window.resetInstallmentUI = resetInstallmentUI;
 window.closeModal = closeModal;
 window.openModal = openModal;
 

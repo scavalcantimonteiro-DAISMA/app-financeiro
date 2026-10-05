@@ -138,11 +138,12 @@ app.get('/api/expenses', async (req, res) => {
 
 app.post('/api/expenses', async (req, res) => {
   try {
-    const { description, amount, category, dateStr, paymentMethod } = req.body;
+    const { description, amount, category, dateStr, paymentMethod, installmentsCount } = req.body;
     if (!description || !amount || isNaN(amount) || amount <= 0) {
       return res.status(400).json({ error: 'Descrição e valor válido são obrigatórios.' });
     }
 
+    const count = parseInt(installmentsCount, 10) || 1;
     const todayStr = new Date().toISOString().split('T')[0];
     const finalDate = dateStr || todayStr;
     const finalMethod = paymentMethod || 'Pix';
@@ -152,12 +153,17 @@ app.post('/api/expenses', async (req, res) => {
       parseFloat(amount),
       category || 'Outros',
       finalDate,
-      finalMethod
+      finalMethod,
+      count
     );
+
+    const message = count > 1
+      ? `Compra no crédito em ${count}x contabilizada com sucesso!`
+      : `Gasto contabilizado: ${expense.description} - R$ ${expense.amount.toFixed(2)}`;
 
     res.status(201).json({
       ok: true,
-      message: `Gasto contabilizado: ${expense.description} - R$ ${expense.amount.toFixed(2)}`,
+      message,
       expense
     });
   } catch (err) {

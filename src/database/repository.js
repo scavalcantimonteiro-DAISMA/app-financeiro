@@ -100,27 +100,97 @@ async function toggleFixedExpensePayment(fixedExpenseId, year, month, isPaid) {
 }
 
 // --- Gastos Variáveis / Despesas ---
-async function addExpense(description, amount, category, dateStr, paymentMethod) {
+async function addExpense(description, amount, category, dateStr, paymentMethod, installmentsCount = 1) {
   const db = getDatabase();
-  const dateObj = new Date(dateStr + 'T12:00:00');
-  const year = dateObj.getFullYear();
-  const month = dateObj.getMonth() + 1;
+  const count = parseInt(installmentsCount, 10) || 1;
 
-  const res = await db.execute({
-    sql: 'INSERT INTO expenses (description, amount, category, date_str, year, month, payment_method) VALUES (?, ?, ?, ?, ?, ?, ?)',
-    args: [description, amount, category || 'Outros', dateStr, year, month, paymentMethod || 'Pix']
-  });
+  if (count <= 1) {
+    const dateObj = new Date(dateStr + 'T12:00:00');
+    const year = dateObj.getFullYear();
+    const month = dateObj.getMonth() + 1;
 
-  return {
-    id: Number(res.lastInsertRowid),
-    description,
-    amount,
-    category: category || 'Outros',
-    dateStr,
-    year,
-    month,
-    paymentMethod: paymentMethod || 'Pix'
-  };
+    const res = await db.execute({
+      sql: 'INSERT INTO expenses (description, amount, category, date_str, year, month, payment_method, installment_number, total_installments) VALUES (?, ?, ?, ?, ?, ?, ?, 1, 1)',
+      args: [description, amount, category || 'Outros', dateStr, year, month, paymentMethod || 'Pix']
+    });
+
+    return {
+      id: Number(res.lastInsertRowid),
+      description,
+      amount,
+      category: category || 'Outros',
+      dateStr,
+      year,
+      month,
+      paymentMethod: paymentMethod || 'Pix',
+      installmentNumber: 1,
+      totalInstallments: 1
+    };
+  }
+
+  // Compra Parcelada no Cartão de Crédito (Distribui pelos próximos meses)
+  const totalAmount = parseFloat(amount);
+  const installmentAmount = Math.round((totalAmount / count) * 100) / 100;
+  const remainder = Math.round((totalAmount - (installmentAmount * count)) * 100) / 100;
+  const startDate = new Date(dateStr + 'T12:00:00');
+
+  let firstExpense = null;
+  let parentExpenseId = null;
+
+  for (let i = 1; i <= count; i++) {
+    const d = new Date(startDate);
+    d.setMonth(d.getMonth() + (i - 1));
+    const dueYear = d.getFullYear();
+    const dueMonth = d.getMonth() + 1;
+    const dueDay = String(d.getDate()).padStart(2, '0');
+    const dueDateStr = `${dueYear}-${String(dueMonth).padStart(2, '0')}-${dueDay}`;
+
+    const currentAmount = (i === count) ? (installmentAmount + remainder) : installmentAmount;
+    const installmentDesc = `${description} (${i}/${count})`;
+
+    const res = await db.execute({
+      sql: `INSERT INTO expenses (
+              description, amount, category, date_str, year, month, 
+              payment_method, installment_number, total_installments, parent_expense_id
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      args: [
+        installmentDesc,
+        currentAmount,
+        category || 'Outros',
+        dueDateStr,
+        dueYear,
+        dueMonth,
+        paymentMethod || 'Cartão de Crédito',
+        i,
+        count,
+        parentExpenseId
+      ]
+    });
+
+    const insertedId = Number(res.lastInsertRowid);
+    if (i === 1) {
+      parentExpenseId = insertedId;
+      firstExpense = {
+        id: insertedId,
+        description: installmentDesc,
+        amount: currentAmount,
+        category: category || 'Outros',
+        dateStr: dueDateStr,
+        year: dueYear,
+        month: dueMonth,
+        paymentMethod: paymentMethod || 'Cartão de Crédito',
+        installmentNumber: 1,
+        totalInstallments: count
+      };
+
+      await db.execute({
+        sql: 'UPDATE expenses SET parent_expense_id = ? WHERE id = ?',
+        args: [insertedId, insertedId]
+      });
+    }
+  }
+
+  return firstExpense;
 }
 
 async function updateExpense(id, description, amount, category, dateStr, paymentMethod) {
